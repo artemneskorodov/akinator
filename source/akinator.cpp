@@ -17,7 +17,7 @@ enum akinator_answer_t {
 static const size_t max_question_size = 64;
 static const size_t text_container_size = 64;
 static const size_t akinator_container_size = 64;
-static const size_t max_system_command_length = 64;
+static const size_t max_system_command_length = 256;
 static const size_t max_filename_size = 64;
 
 static const char *general_dump_filename = "logs/akin.html";
@@ -111,7 +111,8 @@ akinator_error_t akinator_dump(akinator_t *akinator) {
             dot_utf8_folder,
             akinator->dumps_number);
     sprintf(filename_img,
-            "dump%08llx.svg",
+            "%s\\dump%08llx.svg",
+            img_folder,
             akinator->dumps_number);
 
     akinator_error_t error_code = AKINATOR_SUCCESS;
@@ -158,7 +159,7 @@ akinator_error_t akinator_create_dot_cp1251_dump(const char *filename_dot_cp1251
 
 akinator_error_t akinator_dot_dump_write_header(FILE       *dot_file,
                                                akinator_t *akinator) {
-    if(fputs("digrapg {\n"
+    if(fputs("digraph {\n"
              "node[shape = Mrecord, style = filled];\n"
              "rankdir = TB;\n",
              dot_file) < 0) {
@@ -189,8 +190,8 @@ akinator_error_t akinator_dump_node(akinator_t      *akinator,
         return AKINATOR_SUCCESS;
     }
 
-    fprintf(dot_file, "node%p -> node%p", node, node->yes);
-    fprintf(dot_file, "node%p -> node%p", node, node->no );
+    fprintf(dot_file, "node%p -> node%p\n", node, node->yes);
+    fprintf(dot_file, "node%p -> node%p\n", node, node->no );
 
     if((error_code = akinator_dump_node(akinator, node->yes, dot_file, level + 1)) != AKINATOR_SUCCESS) {
         return error_code;
@@ -221,10 +222,21 @@ akinator_error_t akinator_create_img_dump(const char *filename_dot_cp1251,
                                           const char *filename_img) {
     char command[max_system_command_length] = {};
     sprintf(command,
-            "Get-Content %s | Set-Content -Encoding utf8 %s",
+            "powershell -command \"Get-Content %s | Set-Content -Encoding utf8 %s\"",
             filename_dot_cp1251,
             filename_dot_utf8);
     system(command);
+
+    FILE *utf8_dot_file = fopen(filename_dot_utf8, "r+");
+    if(utf8_dot_file == NULL) {
+        color_printf(RED_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
+                     "Error while opening utf8 dot file.\n");
+        return AKINATOR_DOT_FILE_OPENING_ERROR;
+    }
+    for(size_t symbol = 0; symbol < 3; symbol++) {
+        fputc(' ', utf8_dot_file);
+    }
+    fclose(utf8_dot_file);
 
     sprintf(command,
             "dot %s -Tsvg -o %s\\%s",
