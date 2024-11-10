@@ -19,28 +19,57 @@ enum akinator_answer_t {
 static const size_t max_question_size         = 64;
 static const size_t akinator_container_size   = 64;
 
-static akinator_error_t akinator_ask_question(akinator_t *akinator, akinator_node_t **current_node);
-static akinator_error_t akinator_read_answer(akinator_answer_t *answer);
-static akinator_error_t akinator_handle_answer_yes(akinator_node_t **current_node);
-static akinator_error_t akinator_handle_answer_no(akinator_t *akinator, akinator_node_t **current_node);
-static akinator_error_t akinator_handle_new_object(akinator_t *akinator, akinator_node_t **current_node);
-static akinator_error_t akinator_init_new_object_children(akinator_t *akinator, akinator_node_t **current_node);
-static akinator_error_t akinator_read_new_object_questions(akinator_node_t *node);
+static akinator_error_t akinator_ask_question               (akinator_t         *akinator,
+                                                             akinator_node_t   **current_node);
 
-static akinator_error_t akinator_read_database(akinator_t *akinator, const char *database_filename);
-static akinator_error_t akinator_database_read_node(akinator_t *akinator, akinator_node_t *node);
-static akinator_error_t akinator_database_clean_buffer(akinator_t *akinator);
-static akinator_error_t akinator_database_read_children(akinator_t *akinator, akinator_node_t *node);
-static akinator_error_t akinator_update_database(akinator_t *akinator);
-static akinator_error_t akinator_database_write_node(akinator_node_t *node, FILE *database, size_t level);
-static akinator_error_t akinator_database_move_quotes(akinator_t *akinator);
-static akinator_error_t akinator_database_read_question(akinator_t *akinator, akinator_node_t *node);
-static akinator_error_t akinator_check_if_new_node(akinator_t *akinator);
-static akinator_error_t akinator_check_if_node_end(akinator_t *akinator);
-static akinator_error_t akinator_database_read_file(akinator_t *akinator, const char *database_filename);
-static akinator_error_t akinator_try_rewrite_database(akinator_t *akinator);
+static akinator_error_t akinator_read_answer                (akinator_answer_t  *answer);
 
-static akinator_error_t akinator_get_free_node(akinator_t *akinator, akinator_node_t **node);
+static akinator_error_t akinator_handle_answer_yes          (akinator_node_t   **current_node);
+
+static akinator_error_t akinator_handle_answer_no           (akinator_t         *akinator,
+                                                             akinator_node_t   **current_node);
+
+static akinator_error_t akinator_handle_new_object          (akinator_t         *akinator,
+                                                             akinator_node_t   **current_node);
+
+static akinator_error_t akinator_init_new_object_children   (akinator_t         *akinator,
+                                                             akinator_node_t   **current_node);
+
+static akinator_error_t akinator_read_new_object_questions  (akinator_node_t    *node);
+
+static akinator_error_t akinator_read_database              (akinator_t         *akinator,
+                                                             const char         *database_filename);
+
+static akinator_error_t akinator_database_read_node         (akinator_t         *akinator,
+                                                             akinator_node_t    *node);
+
+static akinator_error_t akinator_database_clean_buffer      (akinator_t         *akinator);
+
+static akinator_error_t akinator_database_read_children     (akinator_t         *akinator,
+                                                             akinator_node_t    *node);
+
+static akinator_error_t akinator_update_database            (akinator_t         *akinator);
+
+static akinator_error_t akinator_database_write_node        (akinator_node_t    *node,
+                                                             FILE               *database,
+                                                             size_t              level);
+
+static akinator_error_t akinator_database_move_quotes       (akinator_t         *akinator);
+
+static akinator_error_t akinator_database_read_question     (akinator_t         *akinator,
+                                                             akinator_node_t    *node);
+
+static akinator_error_t akinator_check_if_new_node          (akinator_t         *akinator);
+
+static akinator_error_t akinator_check_if_node_end          (akinator_t         *akinator);
+
+static akinator_error_t akinator_database_read_file         (akinator_t         *akinator,
+                                                             const char         *database_filename);
+
+static akinator_error_t akinator_try_rewrite_database       (akinator_t         *akinator);
+
+static akinator_error_t akinator_get_free_node              (akinator_t         *akinator,
+                                                             akinator_node_t   **node);
 
 akinator_error_t akinator_ctor(akinator_t *akinator, const char *database_filename) {
     SetConsoleCP(1251);
@@ -81,6 +110,8 @@ akinator_error_t akinator_dtor(akinator_t *akinator) {
         free(akinator->containers[element]);
     }
     text_buffer_dtor(&akinator->new_questions_storage);
+    fclose(akinator->general_dump);
+    free(akinator->old_questions_storage);
 
     return AKINATOR_SUCCESS;
 }
@@ -92,7 +123,7 @@ akinator_error_t akinator_read_database(akinator_t *akinator, const char *databa
     }
     if((error_code = text_buffer_ctor(&akinator->new_questions_storage,
                                       max_question_size,
-                                      akinator->old_storage_size / max_question_size)) != AKINATOR_SUCCESS) {
+                                      akinator->old_storage_size)) != AKINATOR_SUCCESS) {
         return error_code;
     }
     if((error_code = akinator_get_free_node(akinator,
@@ -116,14 +147,18 @@ akinator_error_t akinator_database_read_file(akinator_t *akinator, const char *d
     }
 
     akinator->old_storage_size = file_size(database);
-    akinator->old_questions_storage = (char *)calloc(akinator->old_storage_size + 1, sizeof(char));
+    akinator->old_questions_storage = (char *)calloc(akinator->old_storage_size + 1,
+                                                     sizeof(char));
     if(akinator->old_questions_storage == NULL) {
         color_printf(RED_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
                      "Error while allocating old questions storage.\n");
         return AKINATOR_TEXT_BUFFER_ALLOCATION_ERROR;
     }
 
-    if(fread(akinator->old_questions_storage, sizeof(char), akinator->old_storage_size, database) != akinator->old_storage_size) {
+    if(fread(akinator->old_questions_storage,
+             sizeof(char),
+             akinator->old_storage_size,
+             database) != akinator->old_storage_size) {
         color_printf(RED_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
                      "Error while reading database from file.\n");
         return AKINATOR_DATABASE_READING_ERROR;
@@ -139,28 +174,24 @@ akinator_error_t akinator_database_read_node(akinator_t      *akinator,
     if((error_code = akinator_check_if_new_node(akinator)) != AKINATOR_SUCCESS) {
         return error_code;
     }
-    if((error_code = akinator_database_read_question(akinator, node)) != AKINATOR_SUCCESS) {
-        return error_code;
-    }
-
-    if(akinator->old_questions_storage[akinator->questions_storage_position++] == '}') {
-        if((error_code = akinator_database_clean_buffer(akinator)) != AKINATOR_SUCCESS) {
-            return error_code;
-        }
-        return AKINATOR_SUCCESS;
-    }
-
-    if((error_code = akinator_database_read_children(akinator,
+    if((error_code = akinator_database_read_question(akinator,
                                                      node)) != AKINATOR_SUCCESS) {
         return error_code;
     }
-    if((error_code = akinator_check_if_node_end(akinator)) != AKINATOR_SUCCESS) {
-        return error_code;
+
+    if(akinator->old_questions_storage[akinator->questions_storage_position++] != '}') {
+        if((error_code = akinator_database_read_children(akinator,
+                                                         node)) != AKINATOR_SUCCESS) {
+            return error_code;
+        }
+        if((error_code = akinator_check_if_node_end(akinator)) != AKINATOR_SUCCESS) {
+            return error_code;
+        }
     }
+
     if((error_code = akinator_database_clean_buffer(akinator)) != AKINATOR_SUCCESS) {
         return error_code;
     }
-
     return AKINATOR_SUCCESS;
 }
 
@@ -244,7 +275,6 @@ akinator_error_t akinator_database_clean_buffer(akinator_t *akinator) {
         symbol = akinator->old_questions_storage[akinator->questions_storage_position++];
     }
     akinator->questions_storage_position--;
-
     return AKINATOR_SUCCESS;
 }
 
@@ -363,15 +393,12 @@ akinator_error_t akinator_read_new_object_questions(akinator_node_t *node) {
 
     color_printf(MAGENTA_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
                  "Скажи ково или что ты загадал по братке.\n");
-    fgetc(stdin);
-    int read_symbols = 0;
-    scanf("%[^\n]%n", node_yes->question, &read_symbols);
+    scanf("\n%[^\n]", node_yes->question);
 
     color_printf(MAGENTA_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
                  "А что его отличает от %sа?\n",
                  node_no->question);
-    fgetc(stdin);
-    scanf("%[^\n]%n", node->question, &read_symbols);
+    scanf("\n%[^\n]", node->question);
     return AKINATOR_SUCCESS;
 }
 

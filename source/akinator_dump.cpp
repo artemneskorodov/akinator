@@ -11,16 +11,38 @@ static const char  *img_folder                = "img";
 static const char  *root_color                = "#b8b8ff";
 static const char  *node_color                = "#ffeedd";
 static const char  *leaf_color                = "#ffd8be";
+static const char  *dump_background           = "#ced4da";
 
-static akinator_error_t akinator_create_dot_cp1251_dump(const char *filename_dot_cp1251, akinator_t *akinator);
-static akinator_error_t akinator_create_img_dump(const char *filename_dot_cp1251, const char *filename_dot_utf8, const char *filename_img);
-static akinator_error_t akinator_add_general_dump(const char *filename_img, akinator_t *akinator);
-static akinator_error_t akinator_dot_dump_write_header(FILE *dot_file);
-static akinator_error_t akinator_dump_node(akinator_t *akinator, akinator_node_t *node, FILE *dot_file, size_t level);
-static akinator_error_t akinator_dot_dump_write_footer(FILE *dot_file);
-static akinator_error_t akinator_get_node_color(akinator_t *akinator, akinator_node_t *node, const char **color);
+static akinator_error_t akinator_create_dot_cp1251_dump (const char      *filename_dot_cp1251,
+                                                         akinator_t      *akinator);
 
-akinator_error_t akinator_dump(akinator_t *akinator) {
+static akinator_error_t akinator_create_img_dump        (const char      *filename_dot_cp1251,
+                                                         const char      *filename_dot_utf8,
+                                                         const char      *filename_img);
+
+static akinator_error_t akinator_add_general_dump       (const char      *filename_img,
+                                                         akinator_t      *akinator,
+                                                         const char      *caller_file,
+                                                         size_t           caller_line,
+                                                         const char      *caller_func);
+
+static akinator_error_t akinator_dot_dump_write_header  (FILE            *dot_file);
+
+static akinator_error_t akinator_dump_node              (akinator_t      *akinator,
+                                                         akinator_node_t *node,
+                                                         FILE            *dot_file,
+                                                         size_t           level);
+
+static akinator_error_t akinator_dot_dump_write_footer  (FILE            *dot_file);
+
+static akinator_error_t akinator_get_node_color         (akinator_t      *akinator,
+                                                         akinator_node_t *node,
+                                                         const char     **color);
+
+akinator_error_t akinator_dump(akinator_t *akinator,
+                               const char *caller_file,
+                               size_t      caller_line,
+                               const char *caller_func) {
     char filename_dot_cp1251[max_filename_size] = {};
     char filename_dot_utf8  [max_filename_size] = {};
     char filename_img       [max_filename_size] = {};
@@ -51,7 +73,10 @@ akinator_error_t akinator_dump(akinator_t *akinator) {
         return error_code;
     }
     if((error_code = akinator_add_general_dump(filename_img,
-                                               akinator)) != AKINATOR_SUCCESS) {
+                                               akinator,
+                                               caller_file,
+                                               caller_line,
+                                               caller_func)) != AKINATOR_SUCCESS) {
         return error_code;
     }
 
@@ -89,10 +114,12 @@ akinator_error_t akinator_create_dot_cp1251_dump(const char *filename_dot_cp1251
 }
 
 akinator_error_t akinator_dot_dump_write_header(FILE *dot_file) {
-    if(fputs("digraph {\n"
-             "node[shape = Mrecord, style = filled];\n"
-             "rankdir = TB;\n",
-             dot_file) < 0) {
+    if(fprintf(dot_file,
+               "digraph {\n"
+               "bgcolor = \"%s\";\n"
+               "node[shape = Mrecord, style = filled];\n"
+               "rankdir = TB;\n",
+               dump_background) < 0) {
         color_printf(RED_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
                      "Error while writing dump.\n");
         return AKINATOR_WRITING_DUMP_ERROR;
@@ -204,11 +231,21 @@ akinator_error_t akinator_create_img_dump(const char *filename_dot_cp1251,
 }
 
 akinator_error_t akinator_add_general_dump(const char *filename_img,
-                                           akinator_t *akinator) {
+                                           akinator_t *akinator,
+                                           const char *caller_file,
+                                           size_t      caller_line,
+                                           const char *caller_func) {
     fprintf(akinator->general_dump,
-            "DUMP %llu\n"
-            "<img src = \"%s\">\n",
+            "<div style = \"background: %s; border-radius: 25px; padding: 10px; margin: 10px;\">"
+            "<h1>DUMP %llu</h1>"
+            "<h2>called from %s:%llu, caller function: %s</h2>"
+            "<img src = \"%s\">\n"
+            "</div>\n",
+            dump_background,
             akinator->dumps_number,
+            caller_file,
+            caller_line,
+            caller_func,
             filename_img);
     return AKINATOR_SUCCESS;
 }
@@ -242,6 +279,18 @@ akinator_error_t akinator_dump_init(akinator_t *akinator) {
         return AKINATOR_GENERAL_DUMP_OPENING_ERROR;
     }
 
-    fputs("<pre>\n", akinator->general_dump);
+    const char *legend_element_styles = "border-radius:12px;height:25px;width:120px;border:solid;text-align:center;";
+
+    fprintf(akinator->general_dump,
+            "<pre>\n"
+            "<div style = \"background: %s; border-radius: 25px; padding: 10px; margin: 10px;\">"
+            "<h2 style = \"background:%s;%s\">root color</h2>"
+            "<h2 style = \"background:%s;%s\">leaf color</h2>"
+            "<h2 style = \"background:%s;%s\">node color</h2>"
+            "</div>",
+            dump_background,
+            root_color, legend_element_styles,
+            leaf_color, legend_element_styles,
+            node_color, legend_element_styles);
     return AKINATOR_SUCCESS;
 }

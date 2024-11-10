@@ -10,7 +10,9 @@ int main(void) {
     akinator_t akinator = {};
     printf("%d\n", akinator_ctor(&akinator, "akinator_database"));
 
-    akinator_dump(&akinator);
+    AKINATOR_DUMP(&akinator);
 
     printf("%d", akinator_guess(&akinator));
+    AKINATOR_DUMP(&akinator);
+    akinator_dtor(&akinator);
 }
