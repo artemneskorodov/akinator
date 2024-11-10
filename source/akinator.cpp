@@ -3,70 +3,55 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
-#include <stdarg.h>
 
 #include "akinator.h"
 #include "text_buffer.h"
 #include "colors.h"
+#include "akinator_utils.h"
+#include "akinator_dump.h"
 
 enum akinator_answer_t {
-    AKINATOR_ANSWER_YES,
-    AKINATOR_ANSWER_NO,
-    AKINATOR_ANSWER_UNKNOWN,
+    AKINATOR_ANSWER_YES     = 0,
+    AKINATOR_ANSWER_NO      = 1,
+    AKINATOR_ANSWER_UNKNOWN = 2,
 };
 
-static const size_t max_question_size = 64;
-static const size_t text_container_size = 64;
-static const size_t akinator_container_size = 64;
-static const size_t max_system_command_length = 256;
-static const size_t max_filename_size = 64;
+static const size_t max_question_size         = 64;
+static const size_t akinator_container_size   = 64;
 
-static const char *general_dump_filename = "logs/akin.html";
-static const char *logs_folder = "logs";
-static const char *dot_utf8_folder = "dot_utf8";
-static const char *dot_cp1251_folder = "dot_cp1251";
-static const char *img_folder = "img";
-
-static akinator_error_t akinator_read_database(akinator_t *akinator, FILE *database);
-static akinator_error_t akinator_database_read_node(akinator_t *akinator, akinator_node_t *node, FILE *database);
-static akinator_error_t akinator_clean_buffer(FILE *database);
-static akinator_error_t akinator_get_free_node(akinator_t *akinator, akinator_node_t **node);
 static akinator_error_t akinator_ask_question(akinator_t *akinator, akinator_node_t **current_node);
 static akinator_error_t akinator_read_answer(akinator_answer_t *answer);
 static akinator_error_t akinator_handle_answer_yes(akinator_node_t **current_node);
 static akinator_error_t akinator_handle_answer_no(akinator_t *akinator, akinator_node_t **current_node);
 static akinator_error_t akinator_handle_new_object(akinator_t *akinator, akinator_node_t **current_node);
-static bool is_leaf(akinator_node_t *node);
-static akinator_error_t akinator_update_database(akinator_t *akinator);
-static akinator_error_t akinator_database_write_node(akinator_node_t *node, FILE *database);
-static akinator_error_t akinator_dump_init(akinator_t *akinator);
-static akinator_error_t akinator_create_dot_cp1251_dump(const char *filename_dot_cp1251, akinator_t *akinator);
-static akinator_error_t akinator_create_img_dump(const char *filename_dot_cp1251, const char *filename_dot_utf8, const char *filename_img);
-static akinator_error_t akinator_add_general_dump(const char *filename_img, akinator_t *akinator);
-static akinator_error_t akinator_dot_dump_write_header(FILE *dot_file, akinator_t *akinator);
-static akinator_error_t akinator_dump_node(akinator_t *akinator, akinator_node_t *node, FILE *dot_file, size_t level);
-static akinator_error_t akinator_dot_dump_write_footer(FILE *dot_file);
-static akinator_error_t akinator_get_node_color(akinator_t *akinator, akinator_node_t *node, const char **color);
-static akinator_error_t akinator_run_system_command(const char *format, ...);
 static akinator_error_t akinator_init_new_object_children(akinator_t *akinator, akinator_node_t **current_node);
-static akinator_error_t akinator_database_read_children(akinator_t *akinator, akinator_node_t *node, FILE *database);
+static akinator_error_t akinator_read_new_object_questions(akinator_node_t *node);
+
+static akinator_error_t akinator_read_database(akinator_t *akinator, const char *database_filename);
+static akinator_error_t akinator_database_read_node(akinator_t *akinator, akinator_node_t *node);
+static akinator_error_t akinator_database_clean_buffer(akinator_t *akinator);
+static akinator_error_t akinator_database_read_children(akinator_t *akinator, akinator_node_t *node);
+static akinator_error_t akinator_update_database(akinator_t *akinator);
+static akinator_error_t akinator_database_write_node(akinator_node_t *node, FILE *database, size_t level);
+static akinator_error_t akinator_database_move_quotes(akinator_t *akinator);
+static akinator_error_t akinator_database_read_question(akinator_t *akinator, akinator_node_t *node);
+static akinator_error_t akinator_check_if_new_node(akinator_t *akinator);
+static akinator_error_t akinator_check_if_node_end(akinator_t *akinator);
+static akinator_error_t akinator_database_read_file(akinator_t *akinator, const char *database_filename);
+static akinator_error_t akinator_try_rewrite_database(akinator_t *akinator);
+
+static akinator_error_t akinator_get_free_node(akinator_t *akinator, akinator_node_t **node);
 
 akinator_error_t akinator_ctor(akinator_t *akinator, const char *database_filename) {
     SetConsoleCP(1251);
     SetConsoleOutputCP(1251);
-    FILE *database = fopen(database_filename, "r");
-    if(database == NULL) {
-        color_printf(RED_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
-                     "Error while opening database.\n");
-        return AKINATOR_DATABASE_OPENING_ERROR;
-    }
 
     akinator->container_size = akinator_container_size;
     akinator->database_name = database_filename;
 
     akinator_error_t error_code = AKINATOR_SUCCESS;
     if((error_code = akinator_read_database(akinator,
-                                            database)) != AKINATOR_SUCCESS) {
+                                            database_filename)) != AKINATOR_SUCCESS) {
         return error_code;
     }
     if((error_code = akinator_dump_init(akinator)) != AKINATOR_SUCCESS) {
@@ -95,203 +80,19 @@ akinator_error_t akinator_dtor(akinator_t *akinator) {
     for(size_t element = 0; element < akinator->containers_number; element++) {
         free(akinator->containers[element]);
     }
-    text_buffer_dtor(&akinator->questions_storage);
+    text_buffer_dtor(&akinator->new_questions_storage);
 
     return AKINATOR_SUCCESS;
 }
 
-akinator_error_t akinator_dump(akinator_t *akinator) {
-    char filename_dot_cp1251[max_filename_size] = {};
-    char filename_dot_utf8  [max_filename_size] = {};
-    char filename_img       [max_filename_size] = {};
-
-    sprintf(filename_dot_cp1251,
-            "%s\\%s\\dump%08llx.dot",
-            logs_folder,
-            dot_cp1251_folder,
-            akinator->dumps_number);
-    sprintf(filename_dot_utf8,
-            "%s\\%s\\dump%08llx.dot",
-            logs_folder,
-            dot_utf8_folder,
-            akinator->dumps_number);
-    sprintf(filename_img,
-            "%s\\dump%08llx.svg",
-            img_folder,
-            akinator->dumps_number);
-
+akinator_error_t akinator_read_database(akinator_t *akinator, const char *database_filename) {
     akinator_error_t error_code = AKINATOR_SUCCESS;
-    if((error_code = akinator_create_dot_cp1251_dump(filename_dot_cp1251,
-                                                     akinator)) != AKINATOR_SUCCESS) {
+    if((error_code = akinator_database_read_file(akinator, database_filename)) != AKINATOR_SUCCESS) {
         return error_code;
     }
-    if((error_code = akinator_create_img_dump(filename_dot_cp1251,
-                                              filename_dot_utf8,
-                                              filename_img)) != AKINATOR_SUCCESS) {
-        return error_code;
-    }
-    if((error_code = akinator_add_general_dump(filename_img,
-                                               akinator)) != AKINATOR_SUCCESS) {
-        return error_code;
-    }
-
-    akinator->dumps_number++;
-    return AKINATOR_SUCCESS;
-}
-
-akinator_error_t akinator_create_dot_cp1251_dump(const char *filename_dot_cp1251,
-                                                 akinator_t *akinator) {
-    FILE *dot_file = fopen(filename_dot_cp1251, "w");
-    if(dot_file == NULL) {
-        color_printf(RED_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
-                     "Error while opening dot file.\n");
-        return AKINATOR_DOT_FILE_OPENING_ERROR;
-    }
-
-    akinator_error_t error_code = AKINATOR_SUCCESS;
-    if((error_code = akinator_dot_dump_write_header(dot_file,
-                                                    akinator)) != AKINATOR_SUCCESS) {
-        fclose(dot_file);
-        return error_code;
-    }
-    if((error_code = akinator_dump_node(akinator,
-                                        akinator->root,
-                                        dot_file, 0)) != AKINATOR_SUCCESS) {
-        fclose(dot_file);
-        return error_code;
-    }
-    if((error_code = akinator_dot_dump_write_footer(dot_file)) != AKINATOR_SUCCESS) {
-        fclose(dot_file);
-        return error_code;
-    }
-
-    fclose(dot_file);
-    return AKINATOR_SUCCESS;
-}
-
-akinator_error_t akinator_dot_dump_write_header(FILE      *dot_file,
-                                               akinator_t *akinator) {
-    if(fputs("digraph {\n"
-             "node[shape = Mrecord, style = filled];\n"
-             "rankdir = TB;\n",
-             dot_file) < 0) {
-        color_printf(RED_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
-                     "Error while writing dump.\n");
-        return AKINATOR_WRITING_DUMP_ERROR;
-    }
-
-    return AKINATOR_SUCCESS;
-}
-
-akinator_error_t akinator_dump_node(akinator_t      *akinator,
-                                    akinator_node_t *node,
-                                    FILE            *dot_file,
-                                    size_t           level) {
-    akinator_error_t error_code = AKINATOR_SUCCESS;
-    const char *color = NULL;
-    if((error_code = akinator_get_node_color(akinator,
-                                             node,
-                                             &color)) != AKINATOR_SUCCESS) {
-        return error_code;
-    }
-    fprintf(dot_file,
-            "node%p[rank = %llu, "
-            "label = \"{ %s | { <yes> ДА | <no> НЕТ } }\", "
-            "color = \"%s\"];\n",
-            node,
-            level,
-            node->question,
-            color);
-    if(is_leaf(node)) {
-        return AKINATOR_SUCCESS;
-    }
-
-    fprintf(dot_file,
-            "node%p -> node%p\n",
-            node,
-            node->yes);
-    fprintf(dot_file,
-            "node%p -> node%p\n",
-            node,
-            node->no );
-
-    if((error_code = akinator_dump_node(akinator,
-                                        node->yes,
-                                        dot_file,
-                                        level + 1)) != AKINATOR_SUCCESS) {
-        return error_code;
-    }
-    if((error_code = akinator_dump_node(akinator,
-                                        node->no,
-                                        dot_file,
-                                        level + 1)) != AKINATOR_SUCCESS) {
-        return error_code;
-    }
-
-    return AKINATOR_SUCCESS;
-}
-
-akinator_error_t akinator_get_node_color(akinator_t *akinator, akinator_node_t *node, const char **color) {
-    *color = "#ffffff";
-    return AKINATOR_SUCCESS;
-}
-
-akinator_error_t akinator_dot_dump_write_footer(FILE *dot_file) {
-    if(fputs("}\n", dot_file) < 0) {
-        color_printf(RED_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
-                     "Error while writing dump.\n");
-        return AKINATOR_WRITING_DUMP_ERROR;
-    }
-    return AKINATOR_SUCCESS;
-}
-
-akinator_error_t akinator_create_img_dump(const char *filename_dot_cp1251,
-                                          const char *filename_dot_utf8,
-                                          const char *filename_img) {
-    akinator_error_t error_code = AKINATOR_SUCCESS;
-    if((error_code = akinator_run_system_command("powershell -command \"Get-Content %s | "
-                                                 "Set-Content -Encoding utf8 %s\"",
-                                                 filename_dot_cp1251,
-                                                 filename_dot_utf8)) != AKINATOR_SUCCESS) {
-        return error_code;
-    }
-
-    FILE *utf8_dot_file = fopen(filename_dot_utf8, "r+");
-    if(utf8_dot_file == NULL) {
-        color_printf(RED_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
-                     "Error while opening utf8 dot file.\n");
-        return AKINATOR_DOT_FILE_OPENING_ERROR;
-    }
-    for(size_t symbol = 0; symbol < 3; symbol++) {
-        fputc(' ', utf8_dot_file);
-    }
-    fclose(utf8_dot_file);
-
-    if((error_code = akinator_run_system_command("dot %s -Tsvg -o %s\\%s",
-                                                 filename_dot_utf8,
-                                                 logs_folder,
-                                                 filename_img)) != AKINATOR_SUCCESS) {
-        return error_code;
-    }
-
-    return AKINATOR_SUCCESS;
-}
-
-akinator_error_t akinator_add_general_dump(const char *filename_img,
-                                           akinator_t *akinator) {
-    fprintf(akinator->general_dump,
-            "DUMP %llu\n"
-            "<img src = \"%s\">\n",
-            akinator->dumps_number,
-            filename_img);
-    return AKINATOR_SUCCESS;
-}
-
-akinator_error_t akinator_read_database(akinator_t *akinator, FILE *database) {
-    akinator_error_t error_code = AKINATOR_SUCCESS;
-    if((error_code = text_buffer_ctor(&akinator->questions_storage,
+    if((error_code = text_buffer_ctor(&akinator->new_questions_storage,
                                       max_question_size,
-                                      text_container_size)) != AKINATOR_SUCCESS) {
+                                      akinator->old_storage_size / max_question_size)) != AKINATOR_SUCCESS) {
         return error_code;
     }
     if((error_code = akinator_get_free_node(akinator,
@@ -299,60 +100,119 @@ akinator_error_t akinator_read_database(akinator_t *akinator, FILE *database) {
         return error_code;
     }
     if((error_code = akinator_database_read_node(akinator,
-                                                 akinator->root,
-                                                 database)) != AKINATOR_SUCCESS) {
+                                                 akinator->root)) != AKINATOR_SUCCESS) {
         return error_code;
     }
 
     return AKINATOR_SUCCESS;
 }
 
-akinator_error_t akinator_database_read_node(akinator_t      *akinator,
-                                             akinator_node_t *node,
-                                             FILE            *database) {
-    if(fgetc(database) != '{') {
+akinator_error_t akinator_database_read_file(akinator_t *akinator, const char *database_filename) {
+    FILE *database = fopen(database_filename, "rb");
+    if(database == NULL) {
         color_printf(RED_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
-                     "Error while reading database.\n");
+                     "Error while opening database.\n");
+        return AKINATOR_DATABASE_OPENING_ERROR;
+    }
+
+    akinator->old_storage_size = file_size(database);
+    akinator->old_questions_storage = (char *)calloc(akinator->old_storage_size + 1, sizeof(char));
+    if(akinator->old_questions_storage == NULL) {
+        color_printf(RED_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
+                     "Error while allocating old questions storage.\n");
+        return AKINATOR_TEXT_BUFFER_ALLOCATION_ERROR;
+    }
+
+    if(fread(akinator->old_questions_storage, sizeof(char), akinator->old_storage_size, database) != akinator->old_storage_size) {
+        color_printf(RED_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
+                     "Error while reading database from file.\n");
         return AKINATOR_DATABASE_READING_ERROR;
     }
 
+    fclose(database);
+    return AKINATOR_SUCCESS;
+}
+
+akinator_error_t akinator_database_read_node(akinator_t      *akinator,
+                                             akinator_node_t *node) {
     akinator_error_t error_code = AKINATOR_SUCCESS;
-    if((error_code = text_buffer_add(&akinator->questions_storage,
-                                     &node->question)) != AKINATOR_SUCCESS) {
+    if((error_code = akinator_check_if_new_node(akinator)) != AKINATOR_SUCCESS) {
         return error_code;
     }
-    if(fscanf(database, "\"%[^\"]\"", node->question) < 0) {
-        color_printf(RED_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
-                     "Error while reading database.\n");
-        return AKINATOR_DATABASE_READING_ERROR;
+    if((error_code = akinator_database_read_question(akinator, node)) != AKINATOR_SUCCESS) {
+        return error_code;
     }
-    if(fgetc(database) == '}') {
-        if((error_code = akinator_clean_buffer(database)) != AKINATOR_SUCCESS) {
+
+    if(akinator->old_questions_storage[akinator->questions_storage_position++] == '}') {
+        if((error_code = akinator_database_clean_buffer(akinator)) != AKINATOR_SUCCESS) {
             return error_code;
         }
         return AKINATOR_SUCCESS;
     }
 
     if((error_code = akinator_database_read_children(akinator,
-                                                     node,
-                                                     database)) != AKINATOR_SUCCESS) {
+                                                     node)) != AKINATOR_SUCCESS) {
         return error_code;
     }
-    if(fgetc(database) != '}') {
-        color_printf(RED_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
-                     "Error while reading database.\n");
-        return AKINATOR_DATABASE_READING_ERROR;
+    if((error_code = akinator_check_if_node_end(akinator)) != AKINATOR_SUCCESS) {
+        return error_code;
     }
-    if((error_code = akinator_clean_buffer(database)) != AKINATOR_SUCCESS) {
+    if((error_code = akinator_database_clean_buffer(akinator)) != AKINATOR_SUCCESS) {
         return error_code;
     }
 
     return AKINATOR_SUCCESS;
 }
 
+akinator_error_t akinator_check_if_new_node(akinator_t *akinator) {
+    if(akinator->old_questions_storage[akinator->questions_storage_position++] != '{') {
+        color_printf(RED_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
+                     "Error while reading database.\n");
+        return AKINATOR_DATABASE_READING_ERROR;
+    }
+
+    return AKINATOR_SUCCESS;
+}
+
+akinator_error_t akinator_check_if_node_end(akinator_t *akinator) {
+    if(akinator->old_questions_storage[akinator->questions_storage_position++] != '}') {
+        color_printf(RED_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
+                     "Error while reading database.\n");
+        return AKINATOR_DATABASE_READING_ERROR;
+    }
+
+    return AKINATOR_SUCCESS;
+}
+
+akinator_error_t akinator_database_read_question(akinator_t *akinator, akinator_node_t *node) {
+    akinator_error_t error_code = AKINATOR_SUCCESS;
+    if((error_code = akinator_database_move_quotes(akinator)) != AKINATOR_SUCCESS) {
+        return error_code;
+    }
+    node->question = akinator->old_questions_storage + akinator->questions_storage_position;
+    if((error_code = akinator_database_move_quotes(akinator)) != AKINATOR_SUCCESS) {
+        return error_code;
+    }
+
+    return AKINATOR_SUCCESS;
+}
+
+akinator_error_t akinator_database_move_quotes(akinator_t *akinator) {
+    while(akinator->old_questions_storage[akinator->questions_storage_position] != '\"') {
+        if(akinator->old_questions_storage[akinator->questions_storage_position] == '\0') {
+            color_printf(RED_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
+                         "Error while reading database.\n");
+            return AKINATOR_DATABASE_READING_ERROR;
+        }
+        akinator->questions_storage_position++;
+    }
+
+    akinator->old_questions_storage[akinator->questions_storage_position++] = '\0';
+    return AKINATOR_SUCCESS;
+}
+
 akinator_error_t akinator_database_read_children(akinator_t      *akinator,
-                                                 akinator_node_t *node,
-                                                 FILE            *database) {
+                                                 akinator_node_t *node) {
     akinator_error_t error_code = AKINATOR_SUCCESS;
 
     if((error_code = akinator_get_free_node(akinator,
@@ -363,33 +223,27 @@ akinator_error_t akinator_database_read_children(akinator_t      *akinator,
                                             &node->yes)) != AKINATOR_SUCCESS) {
         return error_code;
     }
-
-    if((error_code = akinator_clean_buffer(database)) != AKINATOR_SUCCESS) {
+    if((error_code = akinator_database_clean_buffer(akinator)) != AKINATOR_SUCCESS) {
         return error_code;
     }
     if((error_code = akinator_database_read_node(akinator,
-                                                 node->yes,
-                                                 database)) != AKINATOR_SUCCESS) {
+                                                 node->yes)) != AKINATOR_SUCCESS) {
         return error_code;
     }
     if((error_code = akinator_database_read_node(akinator,
-                                                 node->no,
-                                                 database)) != AKINATOR_SUCCESS) {
-        return error_code;
-    }
-    if((error_code = akinator_clean_buffer(database)) != AKINATOR_SUCCESS) {
+                                                 node->no)) != AKINATOR_SUCCESS) {
         return error_code;
     }
 
     return AKINATOR_SUCCESS;
 }
 
-akinator_error_t akinator_clean_buffer(FILE *database) {
-    int symbol = 0;
-    while(!isgraph(symbol) && symbol != EOF) {
-        symbol = fgetc(database);
+akinator_error_t akinator_database_clean_buffer(akinator_t *akinator) {
+    char symbol = akinator->old_questions_storage[akinator->questions_storage_position++];
+    while(!isgraph(symbol) && symbol != '\0') {
+        symbol = akinator->old_questions_storage[akinator->questions_storage_position++];
     }
-    fseek(database, -1, SEEK_CUR);
+    akinator->questions_storage_position--;
 
     return AKINATOR_SUCCESS;
 }
@@ -494,20 +348,35 @@ akinator_error_t akinator_handle_new_object(akinator_t       *akinator,
                                                        current_node)) != AKINATOR_SUCCESS) {
         return error_code;
     }
-    akinator_node_t *node_no = (*current_node)->no;
-    akinator_node_t *node_yes = (*current_node)->yes;
+    if((error_code = akinator_read_new_object_questions(*current_node)) != AKINATOR_SUCCESS) {
+        return error_code;
+    }
+    if((error_code = akinator_try_rewrite_database(akinator)) != AKINATOR_SUCCESS) {
+        return error_code;
+    }
+    return AKINATOR_EXIT_SUCCESS;
+}
+
+akinator_error_t akinator_read_new_object_questions(akinator_node_t *node) {
+    akinator_node_t *node_no  = node->no;
+    akinator_node_t *node_yes = node->yes;
 
     color_printf(MAGENTA_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
                  "Скажи ково или что ты загадал по братке.\n");
     fgetc(stdin);
-    scanf("%[^\n]", node_yes->question);
+    int read_symbols = 0;
+    scanf("%[^\n]%n", node_yes->question, &read_symbols);
 
     color_printf(MAGENTA_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
                  "А что его отличает от %sа?\n",
                  node_no->question);
     fgetc(stdin);
-    scanf("%[^\n]", (*current_node)->question);
+    scanf("%[^\n]%n", node->question, &read_symbols);
+    return AKINATOR_SUCCESS;
+}
 
+akinator_error_t akinator_try_rewrite_database(akinator_t *akinator) {
+    akinator_error_t error_code = AKINATOR_SUCCESS;
     color_printf(BLUE_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
                  "Ты хочешь чтобы я обновил свою базу данных?\n");
     while(true) {
@@ -534,7 +403,6 @@ akinator_error_t akinator_handle_new_object(akinator_t       *akinator,
             }
         }
     }
-    return AKINATOR_EXIT_SUCCESS;
 }
 
 akinator_error_t akinator_init_new_object_children(akinator_t       *akinator,
@@ -550,24 +418,15 @@ akinator_error_t akinator_init_new_object_children(akinator_t       *akinator,
     }
 
     (*current_node)->no->question = (*current_node)->question;
-    if((error_code = text_buffer_add(&akinator->questions_storage,
+    if((error_code = text_buffer_add(&akinator->new_questions_storage,
                                      &(*current_node)->question)) != AKINATOR_SUCCESS) {
         return error_code;
     }
-    if((error_code = text_buffer_add(&akinator->questions_storage,
+    if((error_code = text_buffer_add(&akinator->new_questions_storage,
                                      &(*current_node)->yes->question)) != AKINATOR_SUCCESS) {
         return error_code;
     }
     return AKINATOR_SUCCESS;
-}
-
-bool is_leaf(akinator_node_t *node) {
-    if(node->no == NULL) {
-        return true;
-    }
-    else {
-        return false;
-    }
 }
 
 akinator_error_t akinator_update_database(akinator_t *akinator) {
@@ -580,7 +439,8 @@ akinator_error_t akinator_update_database(akinator_t *akinator) {
 
     akinator_error_t error_code = AKINATOR_SUCCESS;
     if((error_code = akinator_database_write_node(akinator->root,
-                                                  database)) != AKINATOR_SUCCESS) {
+                                                  database,
+                                                  0)) != AKINATOR_SUCCESS) {
         return error_code;
     }
 
@@ -588,7 +448,11 @@ akinator_error_t akinator_update_database(akinator_t *akinator) {
 }
 
 akinator_error_t akinator_database_write_node(akinator_node_t *node,
-                                              FILE            *database) {
+                                              FILE            *database,
+                                              size_t level) {
+    for(size_t i = 0; i < level; i++) {
+        fputc('\t', database);
+    }
     fprintf(database, "{\"%s\"", node->question);
     if(is_leaf(node)) {
         fputs("}\n", database);
@@ -599,11 +463,13 @@ akinator_error_t akinator_database_write_node(akinator_node_t *node,
 
     akinator_error_t error_code = AKINATOR_SUCCESS;
     if((error_code = akinator_database_write_node(node->yes,
-                                                  database)) != AKINATOR_SUCCESS) {
+                                                  database,
+                                                  level + 1)) != AKINATOR_SUCCESS) {
         return error_code;
     }
     if((error_code = akinator_database_write_node(node->no,
-                                                  database)) != AKINATOR_SUCCESS) {
+                                                  database,
+                                                  level + 1)) != AKINATOR_SUCCESS) {
         return error_code;
     }
 
@@ -611,49 +477,3 @@ akinator_error_t akinator_database_write_node(akinator_node_t *node,
     return AKINATOR_SUCCESS;
 }
 
-akinator_error_t akinator_dump_init(akinator_t *akinator) {
-    akinator_error_t error_code = AKINATOR_SUCCESS;
-    if((error_code = akinator_run_system_command("md %s",
-                                                 logs_folder)) != AKINATOR_SUCCESS) {
-        return error_code;
-    }
-    if((error_code = akinator_run_system_command("md %s\\%s",
-                                                 logs_folder,
-                                                 dot_utf8_folder)) != AKINATOR_SUCCESS) {
-        return error_code;
-    }
-    if((error_code = akinator_run_system_command("md %s\\%s",
-                                                 logs_folder,
-                                                 dot_cp1251_folder)) != AKINATOR_SUCCESS) {
-        return error_code;
-    }
-    if((error_code = akinator_run_system_command("md %s\\%s",
-                                                 logs_folder,
-                                                 img_folder)) != AKINATOR_SUCCESS) {
-        return error_code;
-    }
-
-    akinator->general_dump = fopen(general_dump_filename, "w");
-    if(akinator->general_dump == NULL) {
-        color_printf(RED_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
-                     "Error while opening akinator dump file.");
-        return AKINATOR_GENERAL_DUMP_OPENING_ERROR;
-    }
-
-    fputs("<pre>", akinator->general_dump);
-    return AKINATOR_SUCCESS;
-}
-
-akinator_error_t akinator_run_system_command(const char *format, ...) {
-    char command[max_system_command_length] = {};
-
-    va_list args;
-    va_start(args, format);
-    if(vsprintf(command, format, args) < 0) {
-        return AKINATOR_SYSTEM_COMMAND_ERROR;
-    }
-    va_end(args);
-    system(command);
-
-    return AKINATOR_SUCCESS;
-}

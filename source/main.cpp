@@ -4,6 +4,7 @@
 #include <ctype.h>
 
 #include "akinator.h"
+#include "akinator_dump.h"
 
 int main(void) {
     akinator_t akinator = {};
