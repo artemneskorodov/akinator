@@ -418,7 +418,9 @@ akinator_error_t akinator_get_free_node(akinator_t       *akinator,
 
 akinator_error_t akinator_ask_question(akinator_t       *akinator,
                                        akinator_node_t **current_node) {
-    printf("Это %s?\n", (*current_node)->question);
+    color_printf(MAGENTA_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
+                 "Это %s?\n",
+                 (*current_node)->question);
     akinator_error_t error_code = AKINATOR_SUCCESS;
     akinator_answer_t answer = AKINATOR_ANSWER_UNKNOWN;
     if((error_code = akinator_read_answer(&answer)) != AKINATOR_SUCCESS) {
@@ -553,7 +555,7 @@ akinator_error_t akinator_init_new_object_children(akinator_t       *akinator,
         return error_code;
     }
     if((error_code = text_buffer_add(&akinator->questions_storage,
-                                     &(*current_node)->no->question)) != AKINATOR_SUCCESS) {
+                                     &(*current_node)->yes->question)) != AKINATOR_SUCCESS) {
         return error_code;
     }
     return AKINATOR_SUCCESS;
@@ -651,6 +653,7 @@ akinator_error_t akinator_run_system_command(const char *format, ...) {
         return AKINATOR_SYSTEM_COMMAND_ERROR;
     }
     va_end(args);
+    system(command);
 
     return AKINATOR_SUCCESS;
 }

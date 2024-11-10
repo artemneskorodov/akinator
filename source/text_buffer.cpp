@@ -26,7 +26,10 @@ akinator_error_t text_buffer_add (text_buffer_t *buffer, char **storage) {
         }
     }
 
-    *storage = buffer->containers[buffer->storing_strings / buffer->container_size] + buffer->storing_strings % buffer->container_size * buffer->string_size;
+    size_t container = buffer->storing_strings / buffer->container_size;
+    size_t index     = buffer->storing_strings % buffer->container_size * buffer->string_size;
+
+    *storage = buffer->containers[container] + index;
     buffer->storing_strings++;
     return AKINATOR_SUCCESS;
 }
