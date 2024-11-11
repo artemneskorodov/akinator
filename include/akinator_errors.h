@@ -16,6 +16,7 @@ enum akinator_error_t {
     AKINATOR_TEXT_CONTAINERS_STORAGE_ERROR  = 11,
     AKINATOR_DEFINITION_ALLOCATING_ERROR    = 12,
     AKINATOR_LEAFS_ALLOCATING_ERROR         = 13,
+    AKINATOR_MEMSET_ERROR                   = 14,
 };
 
 #endif

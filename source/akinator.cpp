@@ -71,21 +71,20 @@ static akinator_error_t akinator_try_rewrite_database       (akinator_t         
 static akinator_error_t akinator_get_free_node              (akinator_t         *akinator,
                                                              akinator_node_t   **node);
 
-static akinator_error_t akinator_find_node                  (akinator_t       *akinator,
-                                                             const char       *object,
-                                                             akinator_node_t **node_output);
+static akinator_error_t akinator_find_node                  (akinator_t         *akinator,
+                                                             const char         *object,
+                                                             akinator_node_t   **node_output);
 
 static akinator_error_t akinator_print_definition           (akinator_node_t   **definition_elements,
                                                              size_t              level);
 
 static akinator_error_t akinator_print_definition_element   (akinator_node_t   **way,
-                                                             size_t              index,
-                                                             size_t              level);
+                                                             size_t              index);
 
-static akinator_error_t akinator_read_and_find              (akinator_t        *akinator,
-                                                             size_t            *level_output,
-                                                             akinator_node_t  **way,
-                                                             const char        *question);
+static akinator_error_t akinator_read_and_find              (akinator_t         *akinator,
+                                                             size_t             *level_output,
+                                                             akinator_node_t   **way,
+                                                             const char         *question);
 
 static akinator_error_t akinator_print_difference           (size_t              level_first,
                                                              akinator_node_t   **way_first,
@@ -99,18 +98,18 @@ static akinator_error_t akinator_leafs_array_add            (akinator_t         
                                                              akinator_node_t    *node);
 
 akinator_error_t akinator_ctor(akinator_t *akinator, const char *database_filename) {
-    SetConsoleCP(1251);
+    SetConsoleCP      (1251);
     SetConsoleOutputCP(1251);
 
     akinator->container_size = akinator_container_size;
-    akinator->database_name = database_filename;
+    akinator->database_name  = database_filename;
 
     akinator_error_t error_code = AKINATOR_SUCCESS;
-    if((error_code = akinator_read_database(akinator,
-                                            database_filename)) != AKINATOR_SUCCESS) {
+    if((error_code = akinator_read_database (akinator,
+                                             database_filename)) != AKINATOR_SUCCESS) {
         return error_code;
     }
-    if((error_code = akinator_dump_init(akinator)) != AKINATOR_SUCCESS) {
+    if((error_code = akinator_dump_init     (akinator))          != AKINATOR_SUCCESS) {
         return error_code;
     }
 
@@ -118,15 +117,15 @@ akinator_error_t akinator_ctor(akinator_t *akinator, const char *database_filena
 }
 
 akinator_error_t akinator_guess(akinator_t *akinator) {
-    akinator_node_t *current_node = akinator->root;
-    akinator_error_t error_code = AKINATOR_SUCCESS;
+    akinator_node_t  *current_node = akinator->root;
+    akinator_error_t  error_code   = AKINATOR_SUCCESS;
 
     while(true) {
         error_code = akinator_ask_question(akinator, &current_node);
         if(error_code == AKINATOR_EXIT_SUCCESS) {
             return AKINATOR_SUCCESS;
         }
-        if(error_code != AKINATOR_SUCCESS) {
+        if(error_code != AKINATOR_SUCCESS     ) {
             return error_code;
         }
     }
@@ -136,6 +135,7 @@ akinator_error_t akinator_dtor(akinator_t *akinator) {
     for(size_t element = 0; element < akinator->containers_number; element++) {
         free(akinator->containers[element]);
     }
+
     text_buffer_dtor(&akinator->new_questions_storage);
     fclose(akinator->general_dump);
     free(akinator->old_questions_storage);
@@ -203,31 +203,31 @@ akinator_error_t akinator_database_read_file(akinator_t *akinator, const char *d
 akinator_error_t akinator_database_read_node(akinator_t      *akinator,
                                              akinator_node_t *node) {
     akinator_error_t error_code = AKINATOR_SUCCESS;
-    if((error_code = akinator_check_if_new_node(akinator)) != AKINATOR_SUCCESS) {
+    if((error_code = akinator_check_if_new_node      (akinator)) != AKINATOR_SUCCESS) {
         return error_code;
     }
-    if((error_code = akinator_database_read_question(akinator,
-                                                     node)) != AKINATOR_SUCCESS) {
+    if((error_code = akinator_database_read_question (akinator,
+                                                      node))     != AKINATOR_SUCCESS) {
         return error_code;
     }
 
     if(akinator->old_questions_storage[akinator->questions_storage_position++] != '}') {
-        if((error_code = akinator_database_read_children(akinator,
-                                                         node)) != AKINATOR_SUCCESS) {
+        if((error_code = akinator_database_read_children (akinator,
+                                                          node))     != AKINATOR_SUCCESS) {
             return error_code;
         }
-        if((error_code = akinator_check_if_node_end(akinator)) != AKINATOR_SUCCESS) {
+        if((error_code = akinator_check_if_node_end      (akinator)) != AKINATOR_SUCCESS) {
             return error_code;
         }
     }
     else {
-        if((error_code = akinator_leafs_array_add(akinator,
-                                                  node)) != AKINATOR_SUCCESS) {
+        if((error_code = akinator_leafs_array_add        (akinator,
+                                                          node))     != AKINATOR_SUCCESS) {
             return error_code;
         }
     }
 
-    if((error_code = akinator_database_clean_buffer(akinator)) != AKINATOR_SUCCESS) {
+    if((error_code = akinator_database_clean_buffer  (akinator)) != AKINATOR_SUCCESS) {
         return error_code;
     }
     return AKINATOR_SUCCESS;
@@ -284,25 +284,25 @@ akinator_error_t akinator_database_read_children(akinator_t      *akinator,
                                                  akinator_node_t *node) {
     akinator_error_t error_code = AKINATOR_SUCCESS;
 
-    if((error_code = akinator_get_free_node(akinator,
-                                            &node->no)) != AKINATOR_SUCCESS) {
+    if((error_code = akinator_get_free_node         (akinator,
+                                                     &node->no))  != AKINATOR_SUCCESS) {
         return error_code;
     }
-    if((error_code = akinator_get_free_node(akinator,
-                                            &node->yes)) != AKINATOR_SUCCESS) {
+    if((error_code = akinator_get_free_node         (akinator,
+                                                     &node->yes)) != AKINATOR_SUCCESS) {
         return error_code;
     }
     node->no->parent = node;
     node->yes->parent = node;
-    if((error_code = akinator_database_clean_buffer(akinator)) != AKINATOR_SUCCESS) {
+    if((error_code = akinator_database_clean_buffer (akinator))   != AKINATOR_SUCCESS) {
         return error_code;
     }
-    if((error_code = akinator_database_read_node(akinator,
-                                                 node->yes)) != AKINATOR_SUCCESS) {
+    if((error_code = akinator_database_read_node    (akinator,
+                                                     node->yes))  != AKINATOR_SUCCESS) {
         return error_code;
     }
-    if((error_code = akinator_database_read_node(akinator,
-                                                 node->no)) != AKINATOR_SUCCESS) {
+    if((error_code = akinator_database_read_node    (akinator,
+                                                     node->no))   != AKINATOR_SUCCESS) {
         return error_code;
     }
 
@@ -414,14 +414,14 @@ akinator_error_t akinator_handle_new_object(akinator_t       *akinator,
                                             akinator_node_t **current_node) {
     akinator_error_t error_code = AKINATOR_SUCCESS;
 
-    if((error_code = akinator_init_new_object_children(akinator,
-                                                       current_node)) != AKINATOR_SUCCESS) {
+    if((error_code = akinator_init_new_object_children  (akinator,
+                                                         current_node))  != AKINATOR_SUCCESS) {
         return error_code;
     }
-    if((error_code = akinator_read_new_object_questions(*current_node)) != AKINATOR_SUCCESS) {
+    if((error_code = akinator_read_new_object_questions (*current_node)) != AKINATOR_SUCCESS) {
         return error_code;
     }
-    if((error_code = akinator_try_rewrite_database(akinator)) != AKINATOR_SUCCESS) {
+    if((error_code = akinator_try_rewrite_database      (akinator))      != AKINATOR_SUCCESS) {
         return error_code;
     }
     return AKINATOR_EXIT_SUCCESS;
@@ -475,21 +475,21 @@ akinator_error_t akinator_try_rewrite_database(akinator_t *akinator) {
 akinator_error_t akinator_init_new_object_children(akinator_t       *akinator,
                                                    akinator_node_t **current_node) {
     akinator_error_t error_code = AKINATOR_SUCCESS;
-    if((error_code = akinator_get_free_node(akinator,
-                                            &(*current_node)->no )) != AKINATOR_SUCCESS) {
+    if((error_code = akinator_get_free_node   (akinator,
+                                               &(*current_node)->no )) != AKINATOR_SUCCESS) {
         return error_code;
     }
-    if((error_code = akinator_get_free_node(akinator,
-                                            &(*current_node)->yes)) != AKINATOR_SUCCESS) {
+    if((error_code = akinator_get_free_node   (akinator,
+                                               &(*current_node)->yes)) != AKINATOR_SUCCESS) {
         return error_code;
     }
 
-    if((error_code = akinator_leafs_array_add(akinator,
-                                              (*current_node)->no)) != AKINATOR_SUCCESS) {
+    if((error_code = akinator_leafs_array_add (akinator,
+                                               (*current_node)->no))   != AKINATOR_SUCCESS) {
         return error_code;
     }
-    if((error_code = akinator_leafs_array_add(akinator,
-                                              (*current_node)->yes)) != AKINATOR_SUCCESS) {
+    if((error_code = akinator_leafs_array_add (akinator,
+                                               (*current_node)->yes))  != AKINATOR_SUCCESS) {
         return error_code;
     }
 
@@ -503,12 +503,12 @@ akinator_error_t akinator_init_new_object_children(akinator_t       *akinator,
     (*current_node)->yes->parent = *current_node;
 
     (*current_node)->no->question = (*current_node)->question;
-    if((error_code = text_buffer_add(&akinator->new_questions_storage,
-                                     &(*current_node)->question)) != AKINATOR_SUCCESS) {
+    if((error_code = text_buffer_add          (&akinator->new_questions_storage,
+                                               &(*current_node)->question))      != AKINATOR_SUCCESS) {
         return error_code;
     }
-    if((error_code = text_buffer_add(&akinator->new_questions_storage,
-                                     &(*current_node)->yes->question)) != AKINATOR_SUCCESS) {
+    if((error_code = text_buffer_add          (&akinator->new_questions_storage,
+                                               &(*current_node)->yes->question)) != AKINATOR_SUCCESS) {
         return error_code;
     }
     return AKINATOR_SUCCESS;
@@ -528,6 +528,7 @@ akinator_error_t akinator_update_database(akinator_t *akinator) {
                                                   0)) != AKINATOR_SUCCESS) {
         return error_code;
     }
+    fclose(database);
 
     return AKINATOR_EXIT_SUCCESS;
 }
@@ -538,6 +539,7 @@ akinator_error_t akinator_database_write_node(akinator_node_t *node,
     for(size_t i = 0; i < level; i++) {
         fputc('\t', database);
     }
+    printf("%s", node->question);
     fprintf(database, "{\"%s\"", node->question);
     if(is_leaf(node)) {
         fputs("}\n", database);
@@ -564,7 +566,8 @@ akinator_error_t akinator_database_write_node(akinator_node_t *node,
 
 akinator_error_t akinator_definition(akinator_t *akinator) {
     akinator_error_t error_code = AKINATOR_SUCCESS;
-    akinator_node_t **way = (akinator_node_t **)calloc(akinator->used_storage + 1, sizeof(akinator_node_t *));
+    akinator_node_t **way = (akinator_node_t **)calloc(akinator->used_storage + 1,
+                                                       sizeof(akinator_node_t *));
     size_t level = 0;
     if(way == NULL) {
         color_printf(RED_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
@@ -589,20 +592,23 @@ akinator_error_t akinator_read_and_find(akinator_t        *akinator,
                                         size_t            *level_output,
                                         akinator_node_t  **way,
                                         const char        *question) {
-    char object[max_question_size] = {};
-    color_printf(MAGENTA_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND, "%s", question);
-    scanf("\n%[^\n]", object);
-
     akinator_node_t *node = NULL;
     akinator_error_t error_code = AKINATOR_SUCCESS;
+    color_printf(MAGENTA_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND, "%s", question);
+    while(true) {
+        char object[max_question_size] = {};
+        scanf("\n%[^\n]", object);
 
-    error_code = akinator_find_node(akinator, object, &node);
-    if(error_code == AKINATOR_SUCCESS) {
-        color_printf(GREEN_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
-                     "Такова не знаю\n");
-        return AKINATOR_SUCCESS;
-    }
-    if(error_code != AKINATOR_EXIT_SUCCESS) {
+
+        error_code = akinator_find_node(akinator, object, &node);
+        if(error_code == AKINATOR_SUCCESS) {
+            color_printf(GREEN_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
+                         "Такова не знаю\n");
+            continue;
+        }
+        if(error_code == AKINATOR_EXIT_SUCCESS) {
+            break;
+        }
         return error_code;
     }
 
@@ -614,7 +620,9 @@ akinator_error_t akinator_read_and_find(akinator_t        *akinator,
     return AKINATOR_SUCCESS;
 }
 
-akinator_error_t akinator_print_definition(akinator_node_t **definition_elements, size_t level) {
+akinator_error_t akinator_print_definition(akinator_node_t **definition_elements,
+                                           size_t            level) {
+    akinator_error_t error_code = AKINATOR_SUCCESS;
     color_printf(GREEN_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
                  "%s - это ", definition_elements[0]->question);
 
@@ -625,7 +633,10 @@ akinator_error_t akinator_print_definition(akinator_node_t **definition_elements
                  "%s, который(ая) ", definition_elements[level - 1]->question);
 
     for(size_t element = level - 2; element > 0; element--) {
-        akinator_print_definition_element(definition_elements, element, level);
+        if((error_code = akinator_print_definition_element(definition_elements,
+                                                           element)) != AKINATOR_SUCCESS) {
+            return error_code;
+        }
     }
     fputc('\n', stdout);
     return AKINATOR_SUCCESS;
@@ -636,7 +647,7 @@ akinator_error_t akinator_find_node(akinator_t       *akinator,
                                     akinator_node_t **node_output) {
     for(size_t index = 0; index < akinator->leafs_array_size; index++) {
         akinator_node_t *node = akinator->leafs_array[index];
-        if(strcmp(node->question, object) == 0) {
+        if(node != NULL && strcmp(node->question, object) == 0) {
             *node_output = node;
             return AKINATOR_EXIT_SUCCESS;
         }
@@ -646,7 +657,8 @@ akinator_error_t akinator_find_node(akinator_t       *akinator,
 
 akinator_error_t akinator_difference(akinator_t *akinator) {
 
-    akinator_node_t **way_first = (akinator_node_t **)calloc((akinator->used_storage + 1) * 2, sizeof(akinator_node_t *));
+    akinator_node_t **way_first = (akinator_node_t **)calloc((akinator->used_storage + 1) * 2,
+                                                             sizeof(akinator_node_t *));
     if(way_first == NULL) {
         color_printf(RED_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
                      "Error while allocating memory to definition elements.\n");
@@ -657,23 +669,23 @@ akinator_error_t akinator_difference(akinator_t *akinator) {
     size_t level_second = 0;
 
     akinator_error_t error_code = AKINATOR_SUCCESS;
-    if((error_code = akinator_read_and_find(akinator,
-                                            &level_first,
-                                            way_first,
-                                            "Кто первый в сравнении?\n")) != AKINATOR_SUCCESS) {
+    if((error_code = akinator_read_and_find    (akinator,
+                                                &level_first,
+                                                way_first,
+                                                "Кто первый в сравнении?\n")) != AKINATOR_SUCCESS) {
         return error_code;
     }
-    if((error_code = akinator_read_and_find(akinator,
-                                            &level_second,
-                                            way_second,
-                                            "Кто второй в сравнении?\n")) != AKINATOR_SUCCESS) {
+    if((error_code = akinator_read_and_find    (akinator,
+                                                &level_second,
+                                                way_second,
+                                                "Кто второй в сравнении?\n")) != AKINATOR_SUCCESS) {
         return error_code;
     }
 
-    if((error_code = akinator_print_difference(level_first,
-                                               way_first,
-                                               level_second,
-                                               way_second)) != AKINATOR_SUCCESS) {
+    if((error_code = akinator_print_difference (level_first,
+                                                way_first,
+                                                level_second,
+                                                way_second))                  != AKINATOR_SUCCESS) {
         return error_code;
     }
 
@@ -685,6 +697,7 @@ akinator_error_t akinator_print_difference(size_t            level_first,
                                            akinator_node_t **way_first,
                                            size_t            level_second,
                                            akinator_node_t **way_second) {
+    akinator_error_t error_code = AKINATOR_SUCCESS;
     size_t index_first = level_first - 1;
     size_t index_second = level_second - 1;
     if(way_first[index_first] == way_second[index_second]) {
@@ -692,8 +705,13 @@ akinator_error_t akinator_print_difference(size_t            level_first,
                      "Они оба ");
     }
 
-    while(way_first[index_first - 1] == way_second[index_second - 1] && index_first > 0 && index_second > 0) {
-        akinator_print_definition_element(way_first, index_first, level_first);
+    while(way_first[index_first - 1] == way_second[index_second - 1] &&
+          index_first  > 0 &&
+          index_second > 0) {
+        if((error_code = akinator_print_definition_element (way_first,
+                                                            index_first))  != AKINATOR_SUCCESS) {
+            return error_code;
+        }
         index_first--;
         index_second--;
     }
@@ -701,19 +719,26 @@ akinator_error_t akinator_print_difference(size_t            level_first,
     color_printf(GREEN_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
                  "но %s ", way_first[0]->question);
     for(; index_first > 0; index_first--) {
-        akinator_print_definition_element(way_first, index_first, level_first);
+        if((error_code = akinator_print_definition_element (way_first,
+                                                            index_first))  != AKINATOR_SUCCESS) {
+            return error_code;
+        }
     }
     color_printf(GREEN_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
                  ", а %s ", way_second[0]->question);
 
     for(; index_second > 0; index_second--) {
-        akinator_print_definition_element(way_second, index_second, level_second);
+        if((error_code = akinator_print_definition_element (way_second,
+                                                            index_second)) != AKINATOR_SUCCESS) {
+            return error_code;
+        }
     }
     fputc('\n', stdout);
     return AKINATOR_SUCCESS;
 }
 
-akinator_error_t akinator_print_definition_element(akinator_node_t **way, size_t index, size_t level) {
+akinator_error_t akinator_print_definition_element(akinator_node_t **way,
+                                                   size_t            index) {
     if(way[index]->no == way[index - 1]) {
         color_printf(GREEN_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND, "не ");
     }
@@ -741,13 +766,20 @@ akinator_error_t akinator_leafs_array_init(akinator_t *akinator,
 akinator_error_t akinator_leafs_array_add(akinator_t      *akinator,
                                           akinator_node_t *node) {
     if(akinator->leafs_array_size >= akinator->leafs_array_capacity) {
-        akinator_node_t **new_array = (akinator_node_t **)realloc(akinator->leafs_array, akinator->leafs_array_capacity * 2);
+        akinator_node_t **new_array = (akinator_node_t **)realloc(akinator->leafs_array,
+                                                                  akinator->leafs_array_capacity * 2);
         if(new_array == NULL) {
             color_printf(RED_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
                          "Error while reallocating leafs array.\n");
             return AKINATOR_LEAFS_ALLOCATING_ERROR;
         }
-        memset(new_array + akinator->leafs_array_capacity, 0, akinator->leafs_array_capacity);
+        akinator_node_t **start_of_new_part = new_array + akinator->leafs_array_capacity;
+        if(memset(start_of_new_part, 0,
+                  akinator->leafs_array_capacity) != start_of_new_part) {
+            color_printf(RED_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
+                         "Error while setting reallocated memory part to zeros.\n");
+            return AKINATOR_MEMSET_ERROR;
+        }
         akinator->leafs_array_capacity *= 2;
     }
 
