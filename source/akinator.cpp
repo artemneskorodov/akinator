@@ -37,10 +37,10 @@ static akinator_error_t akinator_handle_answer_no           (akinator_t         
                                                              akinator_node_t   **current_node);
 
 static akinator_error_t akinator_handle_new_object          (akinator_t         *akinator,
-                                                             akinator_node_t   **current_node);
+                                                             akinator_node_t    *current_node);
 
 static akinator_error_t akinator_init_new_object_children   (akinator_t         *akinator,
-                                                             akinator_node_t   **current_node);
+                                                             akinator_node_t    *current_node);
 
 static akinator_error_t akinator_read_new_object_questions  (akinator_node_t    *node);
 
@@ -121,7 +121,6 @@ static akinator_error_t akinator_verify_children_parent     (akinator_node_t *no
 #define AKINATOR_VERIFY(__akinator) {                            \
     akinator_error_t __error_code = akinator_verify(__akinator); \
     if(__error_code != AKINATOR_SUCCESS) {                       \
-        printf("%d\n", __LINE__);                                  \
         return __error_code;                                     \
     }                                                            \
 }
@@ -131,12 +130,15 @@ static akinator_error_t akinator_verify_children_parent     (akinator_node_t *no
 akinator_error_t akinator_ctor(akinator_t *akinator, const char *database_filename) {
     SetConsoleCP      (1251);
     SetConsoleOutputCP(1251);
+    _C_ASSERT(akinator          != NULL, return AKINATOR_NULL_POINTER          );
+    _C_ASSERT(database_filename != NULL, return AKINATOR_DATABASE_FILENAME_NULL);
 
     akinator->container_size = akinator_container_size;
     akinator->database_name  = database_filename;
 
     RETURN_IF_ERROR(akinator_read_database(akinator,
                                            database_filename));
+
     RETURN_IF_ERROR(akinator_dump_init    (akinator));
 
     AKINATOR_VERIFY(akinator);
@@ -539,7 +541,7 @@ akinator_error_t akinator_handle_answer_no(akinator_t       *akinator,
     AKINATOR_VERIFY(akinator);
 
     if(is_leaf(*current_node)) {
-        return akinator_handle_new_object(akinator, current_node);
+        return akinator_handle_new_object(akinator, *current_node);
     }
     else {
         *current_node = (*current_node)->no;
@@ -550,11 +552,11 @@ akinator_error_t akinator_handle_answer_no(akinator_t       *akinator,
 /*=============================================================================*/
 
 akinator_error_t akinator_handle_new_object(akinator_t       *akinator,
-                                            akinator_node_t **current_node) {
+                                            akinator_node_t *current_node) {
     AKINATOR_VERIFY(akinator);
 
     RETURN_IF_ERROR(akinator_init_new_object_children (akinator, current_node));
-    RETURN_IF_ERROR(akinator_read_new_object_questions(*current_node));
+    RETURN_IF_ERROR(akinator_read_new_object_questions(current_node));
     RETURN_IF_ERROR(akinator_try_rewrite_database     (akinator));
     return AKINATOR_EXIT_SUCCESS;
 }
@@ -613,29 +615,28 @@ akinator_error_t akinator_try_rewrite_database(akinator_t *akinator) {
 /*=============================================================================*/
 
 akinator_error_t akinator_init_new_object_children(akinator_t       *akinator,
-                                                   akinator_node_t **current_node) {
+                                                   akinator_node_t  *current_node) {
     _C_ASSERT(current_node  != NULL, return AKINATOR_NODE_NULL);
-    _C_ASSERT(*current_node != NULL, return AKINATOR_NODE_NULL);
     AKINATOR_VERIFY(akinator);
 
-    akinator_node_t *parent    = *current_node;
-    akinator_node_t *child_no  = (*current_node)->no;
-    akinator_node_t *child_yes = (*current_node)->yes;
+    RETURN_IF_ERROR(akinator_get_children_free_nodes(akinator, current_node));
 
-    RETURN_IF_ERROR(akinator_get_children_free_nodes(akinator, parent));
+    akinator_node_t *child_no  = current_node->no;
+    akinator_node_t *child_yes = current_node->yes;
+
     RETURN_IF_ERROR(akinator_leafs_array_add        (akinator, child_yes));
 
-    child_no  = parent;
-    child_yes = parent;
+    child_no ->parent = current_node;
+    child_yes->parent = current_node;
 
     for(size_t index = 0; index < akinator->leafs_array_size; index++) {
-        if(akinator->leafs_array[index] == parent) {
+        if(akinator->leafs_array[index] == current_node) {
             akinator->leafs_array[index] = child_no;
         }
     }
-    child_no->question = parent->question;
+    child_no->question = current_node->question;
 
-    RETURN_IF_ERROR(text_buffer_add(&akinator->new_questions_storage, &parent->question));
+    RETURN_IF_ERROR(text_buffer_add(&akinator->new_questions_storage, &current_node->question));
     RETURN_IF_ERROR(text_buffer_add(&akinator->new_questions_storage, &child_yes->question));
 
     AKINATOR_VERIFY(akinator);
@@ -793,6 +794,10 @@ akinator_error_t akinator_print_difference(size_t            level_first,
         color_printf(GREEN_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
                      "Они оба ");
     }
+    else {
+        color_printf(GREEN_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
+                     "%s ", way_first[0]->question);
+    }
     while(way_first[index_first - 1] == way_second[index_second - 1] && index_first  > 0 && index_second > 0) {
         RETURN_IF_ERROR(akinator_print_definition_element(way_first, index_first));
         index_first--;
@@ -859,7 +864,8 @@ akinator_error_t akinator_leafs_array_init(akinator_t *akinator,
 
 akinator_error_t akinator_leafs_array_add(akinator_t      *akinator,
                                           akinator_node_t *node) {
-    AKINATOR_VERIFY(akinator);
+    _C_ASSERT(akinator != NULL, return AKINATOR_NULL_POINTER);
+    _C_ASSERT(node     != NULL, return AKINATOR_NODE_NULL   );
 
     if(akinator->leafs_array_size >= akinator->leafs_array_capacity) {
         akinator_node_t **new_array = (akinator_node_t **)realloc(akinator->leafs_array,
@@ -885,7 +891,6 @@ akinator_error_t akinator_leafs_array_add(akinator_t      *akinator,
 
     akinator->leafs_array_size++;
 
-    AKINATOR_VERIFY(akinator);
     return AKINATOR_SUCCESS;
 }
 
