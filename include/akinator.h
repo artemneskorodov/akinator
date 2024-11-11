@@ -44,4 +44,6 @@ akinator_error_t akinator_definition (akinator_t *akinator);
 
 akinator_error_t akinator_difference (akinator_t *akinator);
 
+akinator_error_t akinator_verify     (akinator_t *akinator);
+
 #endif

@@ -17,6 +17,19 @@ enum akinator_error_t {
     AKINATOR_DEFINITION_ALLOCATING_ERROR    = 12,
     AKINATOR_LEAFS_ALLOCATING_ERROR         = 13,
     AKINATOR_MEMSET_ERROR                   = 14,
+    AKINATOR_NULL_POINTER                   = 15,
+    AKINATOR_NULL_USED_CONTAINER            = 16,
+    AKINATOR_CONTAINERS_OVERFLOW            = 17,
+    AKINATOR_NOT_NULL_UNUSED_CONTAINER      = 18,
+    AKINATOR_NODE_NULL                      = 19,
+    AKINATOR_ONE_CHILD                      = 20,
+    AKINATOR_CHILD_PARENT_CONNECTION_ERROR  = 21,
+    AKINATOR_NULL_ROOT                      = 22,
+    AKINATOR_WAY_ARRAY_NULL                 = 23,
+    AKINATOR_INVALID_NODE_LEVEL             = 24,
+    AKINATOR_NULL_OBJECT_NAME               = 25,
+    AKINATOR_ANSWER_NULL                    = 26,
+    AKINATOR_DATABASE_FILENAME_NULL         = 27,
 };
 
 #endif

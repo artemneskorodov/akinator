@@ -14,13 +14,13 @@ struct text_buffer_t {
     size_t max_containers_number;
 };
 
-akinator_error_t text_buffer_ctor (text_buffer_t *buffer,
-                                   size_t         max_string_size,
-                                   size_t         container_size);
+akinator_error_t text_buffer_ctor   (text_buffer_t *buffer,
+                                     size_t         max_string_size,
+                                     size_t         container_size);
 
-akinator_error_t text_buffer_add  (text_buffer_t *buffer,
-                                   char         **storage);
+akinator_error_t text_buffer_add    (text_buffer_t *buffer,
+                                     char         **storage);
 
-akinator_error_t text_buffer_dtor (text_buffer_t *buffer);
+akinator_error_t text_buffer_dtor   (text_buffer_t *buffer);
 
 #endif
