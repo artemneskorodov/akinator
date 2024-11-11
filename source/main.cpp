@@ -12,7 +12,11 @@ int main(void) {
 
     AKINATOR_DUMP(&akinator);
 
-    printf("%d", akinator_guess(&akinator));
+    printf("%d\n", akinator_guess(&akinator));
+    printf("%d\n", akinator_definition(&akinator));
+    printf("%d\n", akinator_difference(&akinator));
     AKINATOR_DUMP(&akinator);
     akinator_dtor(&akinator);
+
+    printf("exit success");
 }

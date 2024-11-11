@@ -71,6 +71,29 @@ static akinator_error_t akinator_try_rewrite_database       (akinator_t         
 static akinator_error_t akinator_get_free_node              (akinator_t         *akinator,
                                                              akinator_node_t   **node);
 
+static akinator_error_t akinator_find_node                  (const char         *object,
+                                                             akinator_node_t    *current_node,
+                                                             size_t              level,
+                                                             akinator_node_t   **node_output,
+                                                             size_t             *level_output);
+
+static akinator_error_t akinator_print_definition           (akinator_node_t   **definition_elements,
+                                                             size_t              level);
+
+static akinator_error_t akinator_print_definition_element   (akinator_node_t   **way,
+                                                             size_t              index,
+                                                             size_t              level);
+
+static akinator_error_t akinator_read_and_find              (akinator_t         *akinator,
+                                                             size_t             *level_output,
+                                                             akinator_node_t  ***way,
+                                                             const char         *question);
+
+static akinator_error_t akinator_print_difference           (size_t              level_first,
+                                                             akinator_node_t   **way_first,
+                                                             size_t              level_second,
+                                                             akinator_node_t   **way_second);
+
 akinator_error_t akinator_ctor(akinator_t *akinator, const char *database_filename) {
     SetConsoleCP(1251);
     SetConsoleOutputCP(1251);
@@ -254,6 +277,8 @@ akinator_error_t akinator_database_read_children(akinator_t      *akinator,
                                             &node->yes)) != AKINATOR_SUCCESS) {
         return error_code;
     }
+    node->no->parent = node;
+    node->yes->parent = node;
     if((error_code = akinator_database_clean_buffer(akinator)) != AKINATOR_SUCCESS) {
         return error_code;
     }
@@ -444,6 +469,9 @@ akinator_error_t akinator_init_new_object_children(akinator_t       *akinator,
         return error_code;
     }
 
+    (*current_node)->no->parent  = *current_node;
+    (*current_node)->yes->parent = *current_node;
+
     (*current_node)->no->question = (*current_node)->question;
     if((error_code = text_buffer_add(&akinator->new_questions_storage,
                                      &(*current_node)->question)) != AKINATOR_SUCCESS) {
@@ -504,3 +532,179 @@ akinator_error_t akinator_database_write_node(akinator_node_t *node,
     return AKINATOR_SUCCESS;
 }
 
+akinator_error_t akinator_definition(akinator_t *akinator) {
+    akinator_error_t error_code = AKINATOR_SUCCESS;
+    size_t level = 0;
+    akinator_node_t **definition_elements = NULL;
+    if((error_code = akinator_read_and_find(akinator,
+                                            &level,
+                                            &definition_elements,
+                                            "Определение кого ты хочешь получить?\n")) != AKINATOR_SUCCESS) {
+        return error_code;
+    }
+    if((error_code = akinator_print_definition(definition_elements,
+                                               level)) != AKINATOR_SUCCESS) {
+        return error_code;
+    }
+    free(definition_elements);
+    return AKINATOR_SUCCESS;
+}
+
+akinator_error_t akinator_read_and_find(akinator_t        *akinator,
+                                        size_t            *level_output,
+                                        akinator_node_t ***way,
+                                        const char        *question) {
+    char object[max_question_size] = {};
+    color_printf(MAGENTA_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND, "%s", question);
+    scanf("\n%[^\n]", object);
+
+    akinator_node_t *node = NULL;
+    akinator_error_t error_code = AKINATOR_SUCCESS;
+
+    error_code = akinator_find_node(object, akinator->root, 0, &node, level_output);
+    if(error_code == AKINATOR_SUCCESS) {
+        color_printf(GREEN_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
+                     "Такова не знаю\n");
+        return AKINATOR_SUCCESS;
+    }
+    if(error_code != AKINATOR_EXIT_SUCCESS) {
+        return error_code;
+    }
+
+    *way = (akinator_node_t **)calloc(*level_output + 1, sizeof(akinator_node_t *));
+    if(*way == NULL) {
+        color_printf(RED_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
+                     "Error while allocating memory to definition elements.\n");
+        return AKINATOR_DEFINITION_ALLOCATING_ERROR;
+    }
+
+    for(size_t element = 0; element < *level_output + 1; element++) {
+        (*way)[*level_output - element] = node;
+        node = node->parent;
+    }
+    return AKINATOR_SUCCESS;
+}
+
+akinator_error_t akinator_print_definition(akinator_node_t **definition_elements,
+                                           size_t            level) {
+    color_printf(GREEN_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
+                 "%s - это ", definition_elements[level]->question);
+    if(definition_elements[0]->no == definition_elements[1]) {
+        color_printf(GREEN_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND, "не ");
+    }
+    color_printf(GREEN_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
+                 "%s, который(ая) ", definition_elements[0]->question);
+
+    for(size_t element = 1; element < level; element++) {
+        akinator_print_definition_element(definition_elements, element, level);
+    }
+    fputc('\n', stdout);
+    return AKINATOR_SUCCESS;
+}
+
+akinator_error_t akinator_find_node(const char       *object,
+                                    akinator_node_t  *current_node,
+                                    size_t            level,
+                                    akinator_node_t **node_output,
+                                    size_t           *level_output) {
+    if(strcmp(current_node->question, object) == 0) {
+        *node_output = current_node;
+        *level_output = level;
+        return AKINATOR_EXIT_SUCCESS;
+    }
+    if(is_leaf(current_node)) {
+        return AKINATOR_SUCCESS;
+    }
+
+    akinator_error_t error_code = AKINATOR_SUCCESS;
+    if((error_code = akinator_find_node(object,
+                                        current_node->no,
+                                        level + 1,
+                                        node_output,
+                                        level_output)) != AKINATOR_SUCCESS) {
+        return error_code;
+    }
+    if((error_code = akinator_find_node(object,
+                                        current_node->yes,
+                                        level + 1,
+                                        node_output,
+                                        level_output)) != AKINATOR_SUCCESS) {
+        return error_code;
+    }
+
+    return AKINATOR_SUCCESS;
+}
+
+akinator_error_t akinator_difference(akinator_t *akinator) {
+    size_t level_first           = 0;
+    size_t level_second          = 0;
+    akinator_node_t **way_first  = NULL;
+    akinator_node_t **way_second = NULL;
+
+    akinator_error_t error_code = AKINATOR_SUCCESS;
+    if((error_code = akinator_read_and_find(akinator,
+                                            &level_first,
+                                            &way_first,
+                                            "Кто первый в сравнении?\n")) != AKINATOR_SUCCESS) {
+        return error_code;
+    }
+    if((error_code = akinator_read_and_find(akinator,
+                                            &level_second,
+                                            &way_second,
+                                            "Кто второй в сравнении?\n")) != AKINATOR_SUCCESS) {
+        return error_code;
+    }
+
+    if((error_code = akinator_print_difference(level_first,
+                                               way_first,
+                                               level_second,
+                                               way_second)) != AKINATOR_SUCCESS) {
+        return error_code;
+    }
+
+    free(way_first);
+    free(way_second);
+    return AKINATOR_SUCCESS;
+}
+
+akinator_error_t akinator_print_difference(size_t            level_first,
+                                           akinator_node_t **way_first,
+                                           size_t            level_second,
+                                           akinator_node_t **way_second) {
+    size_t index = 0;
+    if(way_first[1] == way_second[1]) {
+        color_printf(GREEN_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
+                     "Они оба ");
+    }
+    while(way_first[index + 1] == way_second[index + 1] && index < level_first && index < level_second) {
+        akinator_print_definition_element(way_first, index, level_first);
+        index++;
+    }
+
+    color_printf(GREEN_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
+                 "но %s ", way_first[level_first]->question);
+    for(size_t index_first = index; index_first < level_first; index_first++) {
+        akinator_print_definition_element(way_first, index_first, level_first);
+    }
+    color_printf(GREEN_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
+                 ", а %s ", way_second[level_second]->question);
+
+    for(size_t index_second = index; index_second < level_second; index_second++) {
+        akinator_print_definition_element(way_second, index_second, level_second);
+    }
+    fputc('\n', stdout);
+    return AKINATOR_SUCCESS;
+}
+
+akinator_error_t akinator_print_definition_element(akinator_node_t **way, size_t index, size_t level) {
+    if(way[index]->no == way[index + 1]) {
+        color_printf(GREEN_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND, "не ");
+    }
+    color_printf(GREEN_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
+                 "%s", way[index]->question);
+    if(index + 1 != level) {
+        color_printf(GREEN_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND, ", ");
+    }
+
+    return AKINATOR_SUCCESS;
+}

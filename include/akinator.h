@@ -12,6 +12,7 @@ struct akinator_node_t {
     char            *question;
     akinator_node_t *yes;
     akinator_node_t *no;
+    akinator_node_t *parent;
 };
 
 struct akinator_t {
@@ -29,11 +30,15 @@ struct akinator_t {
     size_t           dumps_number;
 };
 
-akinator_error_t akinator_ctor  (akinator_t *akinator,
-                                 const char *database_filename);
+akinator_error_t akinator_ctor       (akinator_t *akinator,
+                                      const char *database_filename);
 
-akinator_error_t akinator_guess (akinator_t *akinator);
+akinator_error_t akinator_guess      (akinator_t *akinator);
 
-akinator_error_t akinator_dtor  (akinator_t *akinator);
+akinator_error_t akinator_dtor       (akinator_t *akinator);
+
+akinator_error_t akinator_definition (akinator_t *akinator);
+
+akinator_error_t akinator_difference (akinator_t *akinator);
 
 #endif
