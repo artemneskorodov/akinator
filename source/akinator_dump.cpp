@@ -2,21 +2,21 @@
 #include "akinator_dump.h"
 #include "akinator_utils.h"
 
-static const size_t      max_filename_size     = 128;
-static const char *const general_dump_filename = "logs/akin.html";
-static const char *const logs_folder           = "logs";
-static const char *const dot_utf8_folder       = "dot_utf8";
-static const char *const dot_cp1251_folder     = "dot_cp1251";
-static const char *const img_folder            = "img";
-static const char *const root_color            = "#b8b8ff";
-static const char *const node_color            = "#ffeedd";
-static const char *const leaf_color            = "#ffd8be";
-static const char *const dump_background       = "#ced4da";
+static const size_t      MaxFilenameSize     = 128;
+static const char *const GeneralDumpFilename = "logs/akin.html";
+static const char *const LogsFolder           = "logs";
+static const char *const DotUtf8Folder       = "dot_utf8";
+static const char *const DotCp1251Folder     = "dot_cp1251";
+static const char *const ImgFolder            = "img";
+static const char *const RootColor            = "#b8b8ff";
+static const char *const NodeColor            = "#ffeedd";
+static const char *const LeafColor            = "#ffd8be";
+static const char *const DumpBackground       = "#ced4da";
 
 struct dump_filenames_t {
-    char dot_cp1251[max_filename_size] = {};
-    char dot_utf8  [max_filename_size] = {};
-    char img       [max_filename_size] = {};
+    char dot_cp1251[MaxFilenameSize] = {};
+    char dot_utf8  [MaxFilenameSize] = {};
+    char img       [MaxFilenameSize] = {};
 };
 
 static akinator_error_t akinator_create_dot_cp1251_dump (dump_filenames_t *filenames,
@@ -125,7 +125,7 @@ akinator_error_t akinator_dot_dump_write_header(FILE *dot_file) {
                "bgcolor = \"%s\";\n"
                "node[shape = Mrecord, style = filled];\n"
                "rankdir = TB;\n",
-               dump_background) < 0) {
+               DumpBackground) < 0) {
         color_printf(RED_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
                      "Error while writing dump.\n");
         return AKINATOR_WRITING_DUMP_ERROR;
@@ -187,13 +187,13 @@ akinator_error_t akinator_dump_node(akinator_t      *akinator,
 
 akinator_error_t akinator_get_node_color(akinator_t *akinator, akinator_node_t *node, const char **color) {
     if(akinator->root == node) {
-        *color = root_color;
+        *color = RootColor;
     }
     else if(is_leaf(node)) {
-        *color = leaf_color;
+        *color = LeafColor;
     }
     else {
-        *color = node_color;
+        *color = NodeColor;
     }
     return AKINATOR_SUCCESS;
 }
@@ -228,7 +228,7 @@ akinator_error_t akinator_create_img_dump(dump_filenames_t *filenames) {
 
     if((error_code = akinator_run_system_command("dot %s -Tsvg -o %s\\%s",
                                                  filenames->dot_utf8,
-                                                 logs_folder,
+                                                 LogsFolder,
                                                  filenames->img)) != AKINATOR_SUCCESS) {
         return error_code;
     }
@@ -247,7 +247,7 @@ akinator_error_t akinator_add_general_dump(const char *filename_img,
             "<h2>called from %s:%llu, caller function: %s</h2>"
             "<img src = \"%s\">\n"
             "</div>\n",
-            dump_background,
+            DumpBackground,
             akinator->dumps_number,
             caller_file,
             caller_line,
@@ -261,26 +261,26 @@ akinator_error_t akinator_add_general_dump(const char *filename_img,
 akinator_error_t akinator_dump_init(akinator_t *akinator) {
     akinator_error_t error_code = AKINATOR_SUCCESS;
     if((error_code = akinator_run_system_command("md %s",
-                                                 logs_folder)) != AKINATOR_SUCCESS) {
+                                                 LogsFolder)) != AKINATOR_SUCCESS) {
         return error_code;
     }
     if((error_code = akinator_run_system_command("md %s\\%s",
-                                                 logs_folder,
-                                                 dot_utf8_folder)) != AKINATOR_SUCCESS) {
+                                                 LogsFolder,
+                                                 DotUtf8Folder)) != AKINATOR_SUCCESS) {
         return error_code;
     }
     if((error_code = akinator_run_system_command("md %s\\%s",
-                                                 logs_folder,
-                                                 dot_cp1251_folder)) != AKINATOR_SUCCESS) {
+                                                 LogsFolder,
+                                                 DotCp1251Folder)) != AKINATOR_SUCCESS) {
         return error_code;
     }
     if((error_code = akinator_run_system_command("md %s\\%s",
-                                                 logs_folder,
-                                                 img_folder)) != AKINATOR_SUCCESS) {
+                                                 LogsFolder,
+                                                 ImgFolder)) != AKINATOR_SUCCESS) {
         return error_code;
     }
 
-    akinator->general_dump = fopen(general_dump_filename, "w");
+    akinator->general_dump = fopen(GeneralDumpFilename, "w");
     if(akinator->general_dump == NULL) {
         color_printf(RED_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
                      "Error while opening akinator dump file.");
@@ -300,10 +300,10 @@ akinator_error_t akinator_dump_init(akinator_t *akinator) {
             "<h2 style = \"background:%s;%s\">leaf color</h2>"
             "<h2 style = \"background:%s;%s\">node color</h2>"
             "</div>",
-            dump_background,
-            root_color, legend_element_styles,
-            leaf_color, legend_element_styles,
-            node_color, legend_element_styles);
+            DumpBackground,
+            RootColor, legend_element_styles,
+            LeafColor, legend_element_styles,
+            NodeColor, legend_element_styles);
     return AKINATOR_SUCCESS;
 }
 
@@ -311,17 +311,17 @@ akinator_error_t akinator_dump_filenames_init(akinator_t       *akinator,
                                               dump_filenames_t *filenames) {
     sprintf(filenames->dot_cp1251,
             "%s\\%s\\dump%08llx.dot",
-            logs_folder,
-            dot_cp1251_folder,
+            LogsFolder,
+            DotCp1251Folder,
             akinator->dumps_number);
     sprintf(filenames->dot_utf8,
             "%s\\%s\\dump%08llx.dot",
-            logs_folder,
-            dot_utf8_folder,
+            LogsFolder,
+            DotUtf8Folder,
             akinator->dumps_number);
     sprintf(filenames->img,
             "%s\\dump%08llx.svg",
-            img_folder,
+            ImgFolder,
             akinator->dumps_number);
     return AKINATOR_SUCCESS;
 }

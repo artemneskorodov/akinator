@@ -32,6 +32,8 @@ enum akinator_error_t {
     AKINATOR_DATABASE_FILENAME_NULL         = 27,
     AKINATOR_TEXT_TO_SPEECH_ERROR           = 28,
     AKINATOR_MESSAGE_SIZE_ERROR             = 29,
+    AKINATOR_IMAGE_LOADING_ERROR            = 30,
+    AKINATOR_UI_ENVIRONMENT_ERROR           = 31,
 };
 
 #endif

@@ -7,6 +7,12 @@
 #include "text_buffer.h"
 #include "tts.h"
 
+enum akinator_answer_t {
+    AKINATOR_ANSWER_YES     = 0,
+    AKINATOR_ANSWER_NO      = 1,
+    AKINATOR_ANSWER_UNKNOWN = 2,
+};
+
 static const size_t max_nodes_containers_number = 64;
 
 struct akinator_node_t {

@@ -10,20 +10,13 @@
 #include "akinator_utils.h"
 #include "akinator_dump.h"
 #include "custom_assert.h"
+#include "graphics.h"
 
 static const size_t max_definition_size = 512;
 
 struct akinator_definition_t {
     char   definition[max_definition_size];
     size_t index;
-};
-
-/*=============================================================================*/
-
-enum akinator_answer_t {
-    AKINATOR_ANSWER_YES     = 0,
-    AKINATOR_ANSWER_NO      = 1,
-    AKINATOR_ANSWER_UNKNOWN = 2,
 };
 
 /*=============================================================================*/
@@ -122,7 +115,6 @@ static akinator_error_t akinator_get_children_free_nodes    (akinator_t         
 static akinator_error_t akinator_verify_children_parent     (akinator_node_t       *node);
 
 static akinator_error_t akinator_print_message              (akinator_t            *akinator,
-                                                             color_t                color,
                                                              const char            *format, ...);
 
 static akinator_error_t akinator_add_definition             (akinator_definition_t *definition,
@@ -149,6 +141,8 @@ static akinator_error_t akinator_add_definition             (akinator_definition
 akinator_error_t akinator_ctor(akinator_t *akinator, const char *database_filename) {
     SetConsoleCP      (1251);
     SetConsoleOutputCP(1251);
+    akinator_graphics_init();
+    system("echo off");
     _C_ASSERT(akinator          != NULL, return AKINATOR_NULL_POINTER          );
     _C_ASSERT(database_filename != NULL, return AKINATOR_DATABASE_FILENAME_NULL);
 
@@ -172,6 +166,8 @@ akinator_error_t akinator_ctor(akinator_t *akinator, const char *database_filena
 
 akinator_error_t akinator_guess(akinator_t *akinator) {
     AKINATOR_VERIFY(akinator);
+
+    akinator_ui_set_guess();
     akinator_node_t  *current_node = akinator->root;
 
     while(true) {
@@ -203,12 +199,14 @@ akinator_error_t akinator_dtor(akinator_t *akinator) {
     free            (akinator->leafs_array);
 
     memset(akinator, 0, sizeof(*akinator));
+    akinator_graphics_dtor();
     return AKINATOR_SUCCESS;
 }
 
 /*=============================================================================*/
 
 akinator_error_t akinator_difference(akinator_t *akinator) {
+    akinator_ui_set_difference();
     AKINATOR_VERIFY(akinator);
     akinator_node_t **way_first = (akinator_node_t **)calloc((akinator->used_storage + 1) * 2,
                                                              sizeof(akinator_node_t *));
@@ -255,6 +253,7 @@ akinator_error_t akinator_difference(akinator_t *akinator) {
 
 akinator_error_t akinator_definition(akinator_t *akinator) {
     AKINATOR_VERIFY(akinator);
+    akinator_ui_set_definition();
     akinator_node_t **way = (akinator_node_t **)calloc(akinator->used_storage + 1,
                                                        sizeof(akinator_node_t *));
     size_t level = 0;
@@ -321,21 +320,19 @@ akinator_error_t akinator_verify(akinator_t *akinator) {
 akinator_error_t akinator_verify_children_parent(akinator_node_t *node) {
     _C_ASSERT(node != NULL, return AKINATOR_NODE_NULL);
 
-    akinator_node_t *child_no = node->no;
-    akinator_node_t *child_yes = node->yes;
-    if(child_no == NULL && child_yes == NULL) {
+    if(node->no == NULL && node->yes == NULL) {
         return AKINATOR_SUCCESS;
     }
-    if(child_no == NULL || child_yes == NULL) {
+    if(node->no == NULL || node->yes == NULL) {
         return AKINATOR_ONE_CHILD;
     }
 
-    if(child_no->parent != node || child_yes->parent != node) {
+    if(node->no->parent != node || node->yes->parent != node) {
         return AKINATOR_CHILD_PARENT_CONNECTION_ERROR;
     }
 
-    RETURN_IF_ERROR(akinator_verify_children_parent(child_no));
-    RETURN_IF_ERROR(akinator_verify_children_parent(child_yes));
+    RETURN_IF_ERROR(akinator_verify_children_parent(node->no));
+    RETURN_IF_ERROR(akinator_verify_children_parent(node->yes));
     return AKINATOR_SUCCESS;
 }
 
@@ -514,7 +511,8 @@ akinator_error_t akinator_database_clean_buffer(akinator_t *akinator) {
     _C_ASSERT(akinator != NULL, return AKINATOR_NULL_POINTER);
 
     char symbol = akinator->old_questions_storage[akinator->questions_storage_position++];
-    while(symbol != '{' && symbol != '}' && symbol != '\0' && akinator->questions_storage_position < akinator->old_storage_size) {
+    while(symbol != '{' && symbol != '}' && symbol != '\0' &&
+          akinator->questions_storage_position < akinator->old_storage_size) {
         symbol = akinator->old_questions_storage[akinator->questions_storage_position++];
     }
 
@@ -558,7 +556,6 @@ akinator_error_t akinator_ask_question(akinator_t       *akinator,
     AKINATOR_VERIFY(akinator);
 
     RETURN_IF_ERROR(akinator_print_message(akinator,
-                                           MAGENTA_TEXT,
                                            "Это %s?",
                                            (*current_node)->question));
 
@@ -574,7 +571,6 @@ akinator_error_t akinator_ask_question(akinator_t       *akinator,
         }
         case AKINATOR_ANSWER_UNKNOWN: {
             RETURN_IF_ERROR(akinator_print_message(akinator,
-                                                   RED_TEXT,
                                                    "Не понял ты чё не русский"));
             return AKINATOR_SUCCESS;
         }
@@ -591,17 +587,7 @@ akinator_error_t akinator_ask_question(akinator_t       *akinator,
 akinator_error_t akinator_read_answer(akinator_answer_t *answer) {
     _C_ASSERT(answer != NULL, return AKINATOR_ANSWER_NULL);
 
-    char text_answer[max_question_size] = {};
-    scanf("%s", text_answer);
-    if(strcmp(text_answer, "да") == 0) {
-        *answer = AKINATOR_ANSWER_YES;
-    }
-    else if(strcmp(text_answer, "нет") == 0) {
-        *answer = AKINATOR_ANSWER_NO;
-    }
-    else {
-        *answer = AKINATOR_ANSWER_UNKNOWN;
-    }
+    RETURN_IF_ERROR(akinator_get_answer_yes_no(answer));
 
     return AKINATOR_SUCCESS;
 }
@@ -613,7 +599,7 @@ akinator_error_t akinator_handle_answer_yes(akinator_t *akinator, akinator_node_
     _C_ASSERT(*current_node != NULL, return AKINATOR_NODE_NULL);
 
     if(is_leaf(*current_node)) {
-        RETURN_IF_ERROR(akinator_print_message(akinator, GREEN_TEXT, "Ну я же говорил"));
+        RETURN_IF_ERROR(akinator_print_message(akinator, "Ну я же говорил"));
         return AKINATOR_EXIT_SUCCESS;
     }
     else {
@@ -657,14 +643,14 @@ akinator_error_t akinator_read_new_object_questions(akinator_t *akinator, akinat
     akinator_node_t *node_no  = node->no;
     akinator_node_t *node_yes = node->yes;
 
-    RETURN_IF_ERROR(akinator_print_message(akinator, MAGENTA_TEXT,
+    RETURN_IF_ERROR(akinator_print_message(akinator,
                                            "Скажи ково или что ты загадал по братке."));
-    scanf("\n%[^\n]", node_yes->question);
+    RETURN_IF_ERROR(akinator_get_text_answer(node_yes->question));
 
-    RETURN_IF_ERROR(akinator_print_message(akinator, MAGENTA_TEXT,
+    RETURN_IF_ERROR(akinator_print_message(akinator,
                                            "А что его отличает от %s`а?",
                                            node_no->question));
-    scanf("\n%[^\n]", node->question);
+    RETURN_IF_ERROR(akinator_get_text_answer(node->question));
     return AKINATOR_SUCCESS;
 }
 
@@ -673,7 +659,7 @@ akinator_error_t akinator_read_new_object_questions(akinator_t *akinator, akinat
 akinator_error_t akinator_try_rewrite_database(akinator_t *akinator) {
     AKINATOR_VERIFY(akinator);
 
-    akinator_print_message(akinator, BLUE_TEXT, "Ты хочешь чтобы я обновил свою базу данных?");
+    RETURN_IF_ERROR(akinator_print_message(akinator, "Ты хочешь чтобы я обновил свою базу данных?"));
     while(true) {
         akinator_answer_t answer = AKINATOR_ANSWER_UNKNOWN;
         RETURN_IF_ERROR(akinator_read_answer(&answer));
@@ -686,7 +672,7 @@ akinator_error_t akinator_try_rewrite_database(akinator_t *akinator) {
                 return AKINATOR_EXIT_SUCCESS;
             }
             case AKINATOR_ANSWER_UNKNOWN: {
-                akinator_print_message(akinator, RED_TEXT, "Не понял ты чё не русский.");
+                RETURN_IF_ERROR(akinator_print_message(akinator, "Не понял ты чё не русский."));
                 break;
             }
             default: {
@@ -791,15 +777,15 @@ akinator_error_t akinator_read_and_find(akinator_t        *akinator,
     AKINATOR_VERIFY(akinator);
 
     akinator_node_t *node = NULL;
-    akinator_print_message(akinator, MAGENTA_TEXT, "%s", question);
+    akinator_print_message(akinator, "%s", question);
     while(true) {
         char object[max_question_size] = {};
-        scanf("\n%[^\n]", object);
+        RETURN_IF_ERROR(akinator_get_text_answer(object));
 
 
         akinator_error_t error_code = akinator_find_node(akinator, object, &node);
         if(error_code == AKINATOR_SUCCESS) {
-            akinator_print_message(akinator, GREEN_TEXT, "Такова не знаю\n");
+            akinator_print_message(akinator, "Такова не знаю\n");
             continue;
         }
         if(error_code == AKINATOR_EXIT_SUCCESS) {
@@ -822,28 +808,28 @@ akinator_error_t akinator_read_and_find(akinator_t        *akinator,
 akinator_error_t akinator_print_definition(akinator_t *akinator,
                                            akinator_node_t **node_way,
                                            size_t            level) {
-    _C_ASSERT(definition_elements != NULL, return AKINATOR_WAY_ARRAY_NULL    );
-    _C_ASSERT(level               >= 1   , return AKINATOR_INVALID_NODE_LEVEL);
+    _C_ASSERT(node_way != NULL, return AKINATOR_WAY_ARRAY_NULL    );
+    _C_ASSERT(level    >= 1   , return AKINATOR_INVALID_NODE_LEVEL);
 
     akinator_definition_t definition = {};
 
     RETURN_IF_ERROR(akinator_add_definition(&definition,
                                             "%s - это ",
-                                            definition_elements[0]->question));
+                                            node_way[0]->question));
 
-    if(definition_elements[level - 1]->no == definition_elements[level - 2]) {
+    if(node_way[level - 1]->no == node_way[level - 2]) {
         RETURN_IF_ERROR(akinator_add_definition(&definition, "не "));
     }
     RETURN_IF_ERROR(akinator_add_definition(&definition,
                                             "%s, который ",
-                                            definition_elements[level - 1]->question));
+                                            node_way[level - 1]->question));
 
     for(size_t element = level - 2; element > 0; element--) {
-        RETURN_IF_ERROR(akinator_print_definition_element(definition_elements,
+        RETURN_IF_ERROR(akinator_print_definition_element(node_way,
                                                           element,
                                                           &definition));
     }
-    akinator_print_message(akinator, GREEN_TEXT, definition.definition);
+    akinator_print_message(akinator, definition.definition);
     fputc('\n', stdout);
     return AKINATOR_SUCCESS;
 }
@@ -916,7 +902,7 @@ akinator_error_t akinator_print_difference(akinator_t       *akinator,
                                                           &definition));
     }
 
-    akinator_print_message(akinator, GREEN_TEXT, definition.definition);
+    akinator_print_message(akinator, definition.definition);
     fputc('\n', stdout);
     return AKINATOR_SUCCESS;
 }
@@ -926,16 +912,16 @@ akinator_error_t akinator_print_difference(akinator_t       *akinator,
 akinator_error_t akinator_print_definition_element(akinator_node_t      **node_way,
                                                    size_t                 index,
                                                    akinator_definition_t *definition) {
-    _C_ASSERT(way   != NULL, return AKINATOR_WAY_ARRAY_NULL    );
-    _C_ASSERT(index >= 1   , return AKINATOR_INVALID_NODE_LEVEL);
+    _C_ASSERT(node_way != NULL, return AKINATOR_WAY_ARRAY_NULL    );
+    _C_ASSERT(index    >= 1   , return AKINATOR_INVALID_NODE_LEVEL);
 
-    if(way[index]->no == way[index - 1]) {
+    if(node_way[index]->no == node_way[index - 1]) {
         RETURN_IF_ERROR(akinator_add_definition(definition, "не "));
     }
     RETURN_IF_ERROR(akinator_add_definition(definition, "%s",
-                                            way[index]->question));
+                                            node_way[index]->question));
     if(index != 1) {
-        RETURN_IF_ERROR(akinator_add_definition(definition, ", "));
+        RETURN_IF_ERROR(akinator_add_definition(definition, ",\n"));
     }
 
     return AKINATOR_SUCCESS;
@@ -1010,7 +996,6 @@ akinator_error_t akinator_get_children_free_nodes(akinator_t      *akinator,
 /*=============================================================================*/
 
 akinator_error_t akinator_print_message(akinator_t *akinator,
-                                        color_t     color,
                                         const char *format, ...) {
     va_list args;
     va_start(args, format);
@@ -1022,8 +1007,7 @@ akinator_error_t akinator_print_message(akinator_t *akinator,
     }
     va_end(args);
 
-    color_printf(color, BOLD_TEXT, DEFAULT_BACKGROUND,
-                 "%s\n", string);
+    RETURN_IF_ERROR(akinator_ui_write_message(string));
 
     tts_speak(&akinator->tts, string);
     return AKINATOR_SUCCESS;
