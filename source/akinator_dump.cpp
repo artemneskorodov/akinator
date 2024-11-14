@@ -2,7 +2,7 @@
 #include "akinator_dump.h"
 #include "akinator_utils.h"
 
-static const size_t      max_filename_size     = 64;
+static const size_t      max_filename_size     = 128;
 static const char *const general_dump_filename = "logs/akin.html";
 static const char *const logs_folder           = "logs";
 static const char *const dot_utf8_folder       = "dot_utf8";
@@ -90,18 +90,32 @@ akinator_error_t akinator_create_dot_cp1251_dump(dump_filenames_t *filenames,
         fclose(dot_file);
         return error_code;
     }
+    if(fputs("subgraph tree_dump{\n", dot_file) < 0) {
+        fclose(dot_file);
+        dot_file = NULL;
+        return AKINATOR_WRITING_DUMP_ERROR;
+    }
     if((error_code = akinator_dump_node(akinator,
                                         akinator->root,
                                         dot_file, 0)) != AKINATOR_SUCCESS) {
         fclose(dot_file);
+        dot_file = NULL;
         return error_code;
+    }
+
+    if(fputs("}\n", dot_file) < 0) {
+        fclose(dot_file);
+        dot_file = NULL;
+        return AKINATOR_WRITING_DUMP_ERROR;
     }
     if((error_code = akinator_dot_dump_write_footer(dot_file)) != AKINATOR_SUCCESS) {
         fclose(dot_file);
         return error_code;
     }
 
-    fclose(dot_file);
+    if(fclose(dot_file) != 0) {
+        return AKINATOR_WRITING_DUMP_ERROR;
+    }
     return AKINATOR_SUCCESS;
 }
 
@@ -131,26 +145,29 @@ akinator_error_t akinator_dump_node(akinator_t      *akinator,
                                              &color)) != AKINATOR_SUCCESS) {
         return error_code;
     }
-    fprintf(dot_file,
-            "node%p[rank = %llu, "
-            "label = \"{ %s | { <yes> дю | <no> мер } }\", "
-            "fillcolor = \"%s\"];\n",
-            node,
-            level,
-            node->question,
-            color);
+    if(fprintf(dot_file,
+               "node%p[rank = %llu, "
+               "label = \"{ %s | { <yes> дю | <no> мер } }\", "
+               "fillcolor = \"%s\"];\n",
+               node,
+               level,
+               node->question,
+               color) < 0) {
+        return AKINATOR_WRITING_DUMP_ERROR;
+    }
     if(is_leaf(node)) {
         return AKINATOR_SUCCESS;
     }
 
-    fprintf(dot_file,
-            "node%p -> node%p\n",
-            node,
-            node->yes);
-    fprintf(dot_file,
-            "node%p -> node%p\n",
-            node,
-            node->no );
+    if(fprintf(dot_file,
+               "node%p -> node%p\n"
+               "node%p -> node%p\n",
+               node,
+               node->yes,
+               node,
+               node->no) < 0) {
+        return AKINATOR_WRITING_DUMP_ERROR;
+    }
 
     if((error_code = akinator_dump_node(akinator,
                                         node->yes,
@@ -198,7 +215,6 @@ akinator_error_t akinator_create_img_dump(dump_filenames_t *filenames) {
                                                  filenames->dot_utf8)) != AKINATOR_SUCCESS) {
         return error_code;
     }
-
     FILE *utf8_dot_file = fopen(filenames->dot_utf8, "r+");
     if(utf8_dot_file == NULL) {
         color_printf(RED_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,

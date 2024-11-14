@@ -38,8 +38,7 @@ akinator_error_t text_buffer_add (text_buffer_t *buffer, char **storage) {
     }
 
     size_t container = buffer->storing_strings / buffer->container_size;
-    size_t index     = buffer->storing_strings % buffer->container_size * buffer->string_size;
-
+    size_t index     = buffer->storing_strings % buffer->container_size * (buffer->string_size + 1);
     *storage = buffer->containers[container] + index;
     buffer->storing_strings++;
     return AKINATOR_SUCCESS;
@@ -54,8 +53,8 @@ akinator_error_t text_buffer_dtor(text_buffer_t *buffer) {
 }
 
 akinator_error_t text_buffer_create_new_container(text_buffer_t *buffer) {
-    if(buffer->containers_number == buffer->max_containers_number) {
-        char **new_containers_array = (char **)realloc(buffer->containers, buffer->containers_number * 2);
+    if(buffer->containers_number >= buffer->max_containers_number) {
+        char **new_containers_array = (char **)realloc(buffer->containers, sizeof(char *) * buffer->containers_number * 2);
         if(new_containers_array == NULL) {
             color_printf(RED_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
                          "Error while reallocating text buffer storage.\n");

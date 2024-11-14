@@ -7,6 +7,7 @@
 #include "akinator_dump.h"
 
 int main(void) {
+
     akinator_t akinator = {};
     printf("%d\n", akinator_ctor(&akinator, "akinator_database"));
 
@@ -19,4 +20,5 @@ int main(void) {
     akinator_dtor(&akinator);
 
     printf("exit success");
+    return EXIT_SUCCESS;
 }

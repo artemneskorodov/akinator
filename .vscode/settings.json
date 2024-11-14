@@ -1,5 +1,10 @@
 {
     "cSpell.words": [
         "akinator"
-    ]
+    ],
+    "files.associations": {
+        "iostream": "cpp",
+        "string": "cpp",
+        "format": "cpp"
+    }
 }

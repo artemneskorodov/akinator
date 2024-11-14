@@ -5,6 +5,7 @@
 
 #include "akinator_errors.h"
 #include "text_buffer.h"
+#include "tts.h"
 
 static const size_t max_nodes_containers_number = 64;
 
@@ -31,6 +32,7 @@ struct akinator_t {
     akinator_node_t **leafs_array;
     size_t            leafs_array_capacity;
     size_t            leafs_array_size;
+    tts_t             tts;
 };
 
 akinator_error_t akinator_ctor       (akinator_t *akinator,

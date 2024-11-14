@@ -30,6 +30,8 @@ enum akinator_error_t {
     AKINATOR_NULL_OBJECT_NAME               = 25,
     AKINATOR_ANSWER_NULL                    = 26,
     AKINATOR_DATABASE_FILENAME_NULL         = 27,
+    AKINATOR_TEXT_TO_SPEECH_ERROR           = 28,
+    AKINATOR_MESSAGE_SIZE_ERROR             = 29,
 };
 
 #endif
