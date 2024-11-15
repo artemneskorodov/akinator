@@ -14,6 +14,7 @@ int main(void) {
     if(akinator_ctor(&akinator, "akinator_database") != AKINATOR_SUCCESS) {
         return main_exit_failure(&akinator);
     }
+    AKINATOR_DUMP(&akinator);
     while(true) {
         main_menu_cases_t chosen_case = MAIN_MENU_EXIT;
         if(akinator_go_to_main_menu(&chosen_case) != AKINATOR_SUCCESS) {

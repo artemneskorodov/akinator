@@ -4,13 +4,14 @@ OUTPUT:=akin.exe
 SRCDIR:=source
 SOURCE:=$(wildcard ${SRCDIR}/*.cpp)
 OBJECTS:=$(addsuffix .o,$(addprefix ${BINDIR}\,$(basename $(notdir ${SOURCE}))))
+LOGS:=logs
 
 all: ${OUTPUT}
 
-${OUTPUT}:${OBJECTS}
+${OUTPUT}:${OBJECTS} ${LOGS}
 	g++ ${FLAGS} ${OBJECTS} -o ${OUTPUT} -lsapi -lole32
 ${OBJECTS}: ${SOURCE} ${BINDIR}
-	$(foreach SRC,${SOURCE},$(shell g++ -c ${SRC} ${FLAGS} -o $(addsuffix .o,$(addprefix ${BINDIR}\,$(basename $(notdir ${SRC}))))))
+	$(foreach SRC,${SOURCE},$(shell g++ -c ${SRC} ${FLAGS} -o $(addsuffix .o,$(addprefix ${BINDIR}\,$(basename $(notdir ${SRC}))))  -lsapi -lole32))
 clean:
 	$(foreach OBJ,${OBJECTS}, $(shell del ${OBJ}))
 	del ${OUTPUT}
@@ -19,3 +20,8 @@ ${SOURCE}:
 
 ${BINDIR}:
 	md ${BINDIR}
+${LOGS}:
+	md ${LOGS}
+	md ${LOGS}\img
+	md ${LOGS}\dot_cp1251
+	md ${LOGS}\dot_utf8

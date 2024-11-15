@@ -1,6 +1,7 @@
 #include "colors.h"
 #include "akinator_dump.h"
 #include "akinator_utils.h"
+#include "custom_assert.h"
 
 static const size_t      MaxFilenameSize     = 128;
 static const char *const GeneralDumpFilename = "logs/akin.html";
@@ -50,6 +51,10 @@ akinator_error_t akinator_dump(akinator_t *akinator,
                                const char *caller_file,
                                size_t      caller_line,
                                const char *caller_func) {
+    _C_ASSERT(akinator    != NULL, return AKINATOR_NULL_POINTER           );
+    _C_ASSERT(caller_file != NULL, return AKINATOR_NULL_FUNCTION_PARAMETER);
+    _C_ASSERT(caller_func != NULL, return AKINATOR_NULL_FUNCTION_PARAMETER);
+
     dump_filenames_t filenames = {};
     akinator_error_t error_code = AKINATOR_SUCCESS;
 
@@ -78,6 +83,9 @@ akinator_error_t akinator_dump(akinator_t *akinator,
 
 akinator_error_t akinator_create_dot_cp1251_dump(dump_filenames_t *filenames,
                                                  akinator_t       *akinator) {
+    _C_ASSERT(akinator  != NULL, return AKINATOR_NULL_POINTER           );
+    _C_ASSERT(filenames != NULL, return AKINATOR_NULL_FUNCTION_PARAMETER);
+
     FILE *dot_file = fopen(filenames->dot_cp1251, "w");
     if(dot_file == NULL) {
         color_printf(RED_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
@@ -120,6 +128,8 @@ akinator_error_t akinator_create_dot_cp1251_dump(dump_filenames_t *filenames,
 }
 
 akinator_error_t akinator_dot_dump_write_header(FILE *dot_file) {
+    _C_ASSERT(dot_file != NULL, return AKINATOR_NULL_FUNCTION_PARAMETER);
+
     if(fprintf(dot_file,
                "digraph {\n"
                "bgcolor = \"%s\";\n"
@@ -138,6 +148,10 @@ akinator_error_t akinator_dump_node(akinator_t      *akinator,
                                     akinator_node_t *node,
                                     FILE            *dot_file,
                                     size_t           level) {
+    _C_ASSERT(akinator != NULL, return AKINATOR_NULL_POINTER           );
+    _C_ASSERT(node     != NULL, return AKINATOR_NODE_NULL              );
+    _C_ASSERT(dot_file != NULL, return AKINATOR_NULL_FUNCTION_PARAMETER);
+
     akinator_error_t error_code = AKINATOR_SUCCESS;
     const char *color = NULL;
     if((error_code = akinator_get_node_color(akinator,
@@ -185,7 +199,13 @@ akinator_error_t akinator_dump_node(akinator_t      *akinator,
     return AKINATOR_SUCCESS;
 }
 
-akinator_error_t akinator_get_node_color(akinator_t *akinator, akinator_node_t *node, const char **color) {
+akinator_error_t akinator_get_node_color(akinator_t      *akinator,
+                                         akinator_node_t *node,
+                                         const char     **color) {
+    _C_ASSERT(akinator != NULL, return AKINATOR_NULL_POINTER           );
+    _C_ASSERT(node     != NULL, return AKINATOR_NODE_NULL              );
+    _C_ASSERT(color    != NULL, return AKINATOR_NULL_FUNCTION_PARAMETER);
+
     if(akinator->root == node) {
         *color = RootColor;
     }
@@ -199,6 +219,8 @@ akinator_error_t akinator_get_node_color(akinator_t *akinator, akinator_node_t *
 }
 
 akinator_error_t akinator_dot_dump_write_footer(FILE *dot_file) {
+    _C_ASSERT(dot_file != NULL, return AKINATOR_NULL_FUNCTION_PARAMETER);
+
     if(fputs("}\n", dot_file) < 0) {
         color_printf(RED_TEXT, BOLD_TEXT, DEFAULT_BACKGROUND,
                      "Error while writing dump.\n");
@@ -208,6 +230,8 @@ akinator_error_t akinator_dot_dump_write_footer(FILE *dot_file) {
 }
 
 akinator_error_t akinator_create_img_dump(dump_filenames_t *filenames) {
+    _C_ASSERT(filenames != NULL, return AKINATOR_NULL_FUNCTION_PARAMETER);
+
     akinator_error_t error_code = AKINATOR_SUCCESS;
     if((error_code = akinator_run_system_command("powershell -command \"Get-Content %s | "
                                                  "Set-Content -Encoding utf8 %s\"",
@@ -241,6 +265,11 @@ akinator_error_t akinator_add_general_dump(const char *filename_img,
                                            const char *caller_file,
                                            size_t      caller_line,
                                            const char *caller_func) {
+    _C_ASSERT(filename_img != NULL, return AKINATOR_NULL_FUNCTION_PARAMETER);
+    _C_ASSERT(akinator     != NULL, return AKINATOR_NULL_POINTER           );
+    _C_ASSERT(caller_file  != NULL, return AKINATOR_NULL_FUNCTION_PARAMETER);
+    _C_ASSERT(caller_func  != NULL, return AKINATOR_NULL_FUNCTION_PARAMETER);
+
     fprintf(akinator->general_dump,
             "<div style = \"background: %s; border-radius: 25px; padding: 10px; margin: 10px;\">"
             "<h1>DUMP %llu</h1>"
@@ -259,26 +288,7 @@ akinator_error_t akinator_add_general_dump(const char *filename_img,
 }
 
 akinator_error_t akinator_dump_init(akinator_t *akinator) {
-    akinator_error_t error_code = AKINATOR_SUCCESS;
-    if((error_code = akinator_run_system_command("md %s",
-                                                 LogsFolder)) != AKINATOR_SUCCESS) {
-        return error_code;
-    }
-    if((error_code = akinator_run_system_command("md %s\\%s",
-                                                 LogsFolder,
-                                                 DotUtf8Folder)) != AKINATOR_SUCCESS) {
-        return error_code;
-    }
-    if((error_code = akinator_run_system_command("md %s\\%s",
-                                                 LogsFolder,
-                                                 DotCp1251Folder)) != AKINATOR_SUCCESS) {
-        return error_code;
-    }
-    if((error_code = akinator_run_system_command("md %s\\%s",
-                                                 LogsFolder,
-                                                 ImgFolder)) != AKINATOR_SUCCESS) {
-        return error_code;
-    }
+    _C_ASSERT(akinator != NULL, return AKINATOR_NULL_POINTER);
 
     akinator->general_dump = fopen(GeneralDumpFilename, "w");
     if(akinator->general_dump == NULL) {
@@ -309,6 +319,9 @@ akinator_error_t akinator_dump_init(akinator_t *akinator) {
 
 akinator_error_t akinator_dump_filenames_init(akinator_t       *akinator,
                                               dump_filenames_t *filenames) {
+    _C_ASSERT(akinator  != NULL, return AKINATOR_NULL_POINTER           );
+    _C_ASSERT(filenames != NULL, return AKINATOR_NULL_FUNCTION_PARAMETER);
+
     sprintf(filenames->dot_cp1251,
             "%s\\%s\\dump%08llx.dot",
             LogsFolder,

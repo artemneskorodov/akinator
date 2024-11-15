@@ -20,28 +20,36 @@ struct akinator_menu_t {
     size_t number;
 };
 
-static HDC MainMenuBackground = NULL;
-static HDC GuessPageBackground = NULL;
+static HDC MainMenuBackground       = NULL;
+static HDC GuessPageBackground      = NULL;
 static HDC DefinitionPageBackground = NULL;
 static HDC DifferencePageBackground = NULL;
 
-static const size_t ScreenWidth = 800;
-static const size_t ScreenHeight = 600;
-static const size_t MainMenuButtonsNumber = 4;
-static const double MainMenuButtonsWidth = 300;
-static const double MainMenuButtonsHeight = 50;
-static const double YesNoButtonsWidth = 200;
-static const double YesNoButtonsHeight = 50;
-static const point_t YesNoButtonsCenter = {.x = ScreenWidth - YesNoButtonsWidth, .y = ScreenHeight - YesNoButtonsHeight * 2};
-static const COLORREF TextColor = RGB(0xff, 0xff, 0xff);
-static const COLORREF BoxColor  = RGB(0x00, 0x00, 0x00);
+static const size_t  ScreenWidth           = 800;
+static const size_t  ScreenHeight          = 600;
+static const size_t  MainMenuButtonsNumber = 4;
+static const double  MainMenuButtonsWidth  = 300;
+static const double  MainMenuButtonsHeight = 50;
+static const double  YesNoButtonsWidth     = 200;
+static const double  YesNoButtonsHeight    = 50;
+static const point_t YesNoButtonsCenter    = {.x = ScreenWidth  - YesNoButtonsWidth,
+                                              .y = ScreenHeight - YesNoButtonsHeight * 2};
+
+static const COLORREF TextColor           = RGB(0xff, 0xff, 0xff);
+static const COLORREF BoxColor            = RGB(0x00, 0x00, 0x00);
 static const COLORREF HighlightedBoxColor = RGB(0x21, 0x12, 0x11);
+
 static const rectangle_t DefaultMessageBox = {.left = 10, .right = 500, .bottom = 20, .top = 300};
 
-static double get_main_menu_box_center_y(size_t number);
-static akinator_error_t akinator_run_menu(akinator_menu_t *menu, size_t *chosen_case);
-static akinator_error_t akinator_draw_menu(akinator_menu_t *menu, size_t highlighted);
-static bool is_in(point_t *point, rectangle_t *rect);
+static double           get_main_menu_box_center_y( size_t number);
+
+static akinator_error_t akinator_run_menu          (akinator_menu_t *menu,
+                                                    size_t          *chosen_case);
+
+static akinator_error_t akinator_draw_menu         (akinator_menu_t *menu,
+                                                    size_t           highlighted);
+
+static bool             is_in                      (point_t *point, rectangle_t *rect);
 
 akinator_error_t akinator_graphics_init(void) {
     txCreateWindow(ScreenWidth, ScreenHeight);
@@ -56,6 +64,7 @@ akinator_error_t akinator_graphics_init(void) {
     DefinitionPageBackground = txLoadImage("img/main_menu.bmp");
     DifferencePageBackground = txLoadImage("img/main_menu.bmp");
 
+    txBitBlt(txDC(), 0, 0, ScreenWidth, ScreenHeight, MainMenuBackground);
     return AKINATOR_SUCCESS;
 }
 
@@ -122,6 +131,7 @@ akinator_error_t akinator_run_menu(akinator_menu_t *menu, size_t *chosen_case) {
             *chosen_case = menu->number;
         }
         if(!is_running) {
+            akinator_draw_menu(menu, menu->number);
             break;
         }
         akinator_draw_menu(menu, *chosen_case);
@@ -202,6 +212,7 @@ akinator_error_t akinator_ui_write_message(const char *message) {
                 DefaultMessageBox.top);
 
     txSetColor(TextColor);
+    txSetTextAlign(TA_CENTER);
     txDrawText(DefaultMessageBox.left,
                DefaultMessageBox.bottom,
                DefaultMessageBox.right,

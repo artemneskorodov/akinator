@@ -12,17 +12,16 @@
 #include "custom_assert.h"
 #include "graphics.h"
 
-static const size_t max_definition_size = 512;
-
-struct akinator_definition_t {
-    char   definition[max_definition_size];
-    size_t index;
-};
+static const size_t MaxDefinitionSize     = 512;
+static const size_t MaxQuestionSize       = 64;
+static const size_t AkinatorContainerSize = 64;
 
 /*=============================================================================*/
 
-static const size_t max_question_size         = 64;
-static const size_t akinator_container_size   = 64;
+struct akinator_definition_t {
+    char   definition[MaxDefinitionSize];
+    size_t index;
+};
 
 /*=============================================================================*/
 
@@ -142,11 +141,10 @@ akinator_error_t akinator_ctor(akinator_t *akinator, const char *database_filena
     SetConsoleCP      (1251);
     SetConsoleOutputCP(1251);
     akinator_graphics_init();
-    system("echo off");
     _C_ASSERT(akinator          != NULL, return AKINATOR_NULL_POINTER          );
     _C_ASSERT(database_filename != NULL, return AKINATOR_DATABASE_FILENAME_NULL);
 
-    akinator->container_size = akinator_container_size;
+    akinator->container_size = AkinatorContainerSize;
     akinator->database_name  = database_filename;
 
     if(tts_ctor(&akinator->tts) != TTS_SUCCESS) {
@@ -347,7 +345,7 @@ akinator_error_t akinator_read_database(akinator_t *akinator,
                                                  database_filename));
 
     RETURN_IF_ERROR(text_buffer_ctor            (&akinator->new_questions_storage,
-                                                 max_question_size,
+                                                 MaxQuestionSize,
                                                  akinator->old_storage_size));
 
     RETURN_IF_ERROR(akinator_leafs_array_init   (akinator,
@@ -779,7 +777,7 @@ akinator_error_t akinator_read_and_find(akinator_t        *akinator,
     akinator_node_t *node = NULL;
     akinator_print_message(akinator, "%s", question);
     while(true) {
-        char object[max_question_size] = {};
+        char object[MaxQuestionSize] = {};
         RETURN_IF_ERROR(akinator_get_text_answer(object));
 
 

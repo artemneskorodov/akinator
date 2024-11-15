@@ -10,7 +10,7 @@ tts_error_t ConvertCP1251ToUTF8(const char *string, wchar_t *output) {
 }
 
 tts_error_t tts_ctor(tts_t *tts) {
-    if( SUCCEEDED( ::CoInitialize( 0 ) ) ) {
+    if(SUCCEEDED(::CoInitialize(0))) {
         ISpVoice* pVoice = nullptr;
         const HRESULT hr_create = ::CoCreateInstance(::CLSID_SpVoice,
                                                      nullptr,
