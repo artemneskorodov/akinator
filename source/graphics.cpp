@@ -111,6 +111,7 @@ akinator_error_t akinator_go_to_main_menu(main_menu_cases_t *output) {
 }
 
 akinator_error_t akinator_run_menu(akinator_menu_t *menu, size_t *chosen_case) {
+    txBegin();
     akinator_draw_menu(menu, *chosen_case);
     while(true) {
         POINT   tx_mouse_pos   = txMousePos();
@@ -136,7 +137,7 @@ akinator_error_t akinator_run_menu(akinator_menu_t *menu, size_t *chosen_case) {
         }
         akinator_draw_menu(menu, *chosen_case);
     }
-
+    txEnd();
     return AKINATOR_SUCCESS;
 }
 
@@ -164,6 +165,7 @@ akinator_error_t akinator_draw_menu(akinator_menu_t *menu, size_t highlighted) {
                    box_rectangle->top,
                    menu->labels[i]);
     }
+    txRedrawWindow();
 
     return AKINATOR_SUCCESS;
 }

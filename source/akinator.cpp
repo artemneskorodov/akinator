@@ -657,7 +657,7 @@ akinator_error_t akinator_read_new_object_questions(akinator_t *akinator, akinat
 akinator_error_t akinator_try_rewrite_database(akinator_t *akinator) {
     AKINATOR_VERIFY(akinator);
 
-    RETURN_IF_ERROR(akinator_print_message(akinator, "Ты хочешь чтобы я обновил свою базу данных?"));
+    RETURN_IF_ERROR(akinator_print_message(akinator, "Ты хочешь чтобы я обновил свою базу данных? Риальна?"));
     while(true) {
         akinator_answer_t answer = AKINATOR_ANSWER_UNKNOWN;
         RETURN_IF_ERROR(akinator_read_answer(&answer));
@@ -670,7 +670,7 @@ akinator_error_t akinator_try_rewrite_database(akinator_t *akinator) {
                 return AKINATOR_EXIT_SUCCESS;
             }
             case AKINATOR_ANSWER_UNKNOWN: {
-                RETURN_IF_ERROR(akinator_print_message(akinator, "Не понял ты чё не русский."));
+                RETURN_IF_ERROR(akinator_print_message(akinator, "Не понял ты чё не русский ШТОЛЕ???"));
                 break;
             }
             default: {
@@ -742,10 +742,7 @@ akinator_error_t akinator_database_write_node(akinator_node_t *node,
     _C_ASSERT(node     != NULL, return AKINATOR_NODE_NULL             );
     _C_ASSERT(database != NULL, return AKINATOR_DATABASE_OPENING_ERROR);
 
-    for(size_t i = 0; i < level; i++) {
-        fputc('\t', database);
-    }
-    fprintf(database, "{\"%s\"", node->question);
+    fprintf(database, "%*s{\"%s\"", level*8, "", node->question);
     if(is_leaf(node)) {
         fputs("}\n", database);
         return AKINATOR_SUCCESS;
@@ -756,10 +753,7 @@ akinator_error_t akinator_database_write_node(akinator_node_t *node,
     RETURN_IF_ERROR(akinator_database_write_node(node->yes, database, level + 1));
     RETURN_IF_ERROR(akinator_database_write_node(node->no,  database, level + 1));
 
-    for(size_t i = 0; i < level; i++) {
-        fputc('\t', database);
-    }
-    fputs("}\n", database);
+    fprintf("%*s}\n", level * 8, "", database);
     return AKINATOR_SUCCESS;
 }
 
